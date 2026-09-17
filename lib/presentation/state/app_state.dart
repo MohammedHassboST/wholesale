@@ -22,6 +22,7 @@ class AppState extends ChangeNotifier {
 
   UserEntity? currentUser;
   List<ProductEntity> products = [];
+  List<ProductEntity> offers = []; // New list for offers
   List<OrderEntity> orders = [];
   List<UserEntity> vendors = [];
   List<NotificationEntity> notifications = [];
@@ -58,7 +59,8 @@ class AppState extends ChangeNotifier {
   String adminAddress = '';
 
   AppState() {
-    _loadSession();
+    // We delay this to ensure initDI and Supabase are ready
+    Future.microtask(() => _loadSession());
   }
 
   bool get isRtl => currentLocale == 'ar';
@@ -147,44 +149,74 @@ class AppState extends ChangeNotifier {
     _categoriesSub = _cloud.getCategoriesStream().listen((list) {
       categories = list;
       notifyListeners();
-    });
+    }, onError: (e) => print('❌ Error Categories: $e'));
 
     _notificationsSub = _cloud.getNotificationsStream().listen((list) {
       notifications = list;
       notifyListeners();
-    });
+    }, onError: (e) => print('❌ Error Notifications: $e'));
 
+    // ==========================================
+    // منطق المورد (Vendor)
+    // ==========================================
     if (currentUser!.role == 'vendor') {
+      print('👤 تسجيل دخول كمورد. الـ ID: ${currentUser!.id}');
       _productsSub = _cloud.getVendorProductsStream(currentUser!.id).listen((list) {
+        print('✅ تم تحديث واجهة المورد. عدد المنتجات: ${list.length}');
         products = list;
         notifyListeners();
+      }, onError: (error) {
+        print('❌ خطأ في جلب منتجات المورد: $error');
       });
       _ordersSub = _cloud.getVendorOrdersStream(currentUser!.id).listen((list) {
         orders = list;
         notifyListeners();
+      }, onError: (error) {
+        print('❌ خطأ في جلب طلبات المورد: $error');
       });
-    } else if (currentUser!.role == 'super_admin') {
+    }
+    // ==========================================
+    // منطق العميل (Customer)
+    // ==========================================
+    else if (currentUser!.role == 'customer') {
+      print('👤 تسجيل دخول كعميل. جلب جميع المنتجات...');
+
       _productsSub = _cloud.getProductsStream().listen((list) {
-        products = list;
+        print('✅ تم تحديث واجهة العميل. إجمالي المنتجات: ${list.length}');
+
+        final allOffers = list.where((p) => p.isOffer == true).toList();
+        final allProducts = list.where((p) => p.isOffer == false).toList();
+
+        products = allProducts;
+        offers = allOffers;
+
         notifyListeners();
-      });
-      _ordersSub = _cloud.getOrdersStream().listen((list) {
-        orders = list;
-        notifyListeners();
-      });
-      _vendorsSub = _cloud.getVendorsStream().listen((list) {
-        vendors = list;
-        notifyListeners();
-      });
-    } else {
-      _productsSub = _cloud.getProductsStream().listen((list) {
-        products = list;
-        notifyListeners();
+      }, onError: (error) {
+        print('❌ خطأ في جلب منتجات العميل: $error');
       });
       _ordersSub = _cloud.getClientOrdersStream(currentUser!.id).listen((list) {
         orders = list;
         notifyListeners();
+      }, onError: (error) {
+        print('❌ خطأ في جلب طلبات العميل: $error');
       });
+    }
+    // ==========================================
+    // منطق المدير (Super Admin)
+    // ==========================================
+    else if (currentUser!.role == 'super_admin') {
+      _productsSub = _cloud.getProductsStream().listen((list) {
+        products = list;
+        notifyListeners();
+      }, onError: (e) => print('❌ Error Admin Products: $e'));
+      _ordersSub = _cloud.getOrdersStream().listen((list) {
+        orders = list;
+        notifyListeners();
+      }, onError: (e) => print('❌ Error Admin Orders: $e'));
+      _vendorsSub = _cloud.getVendorsStream().listen((list) {
+        vendors = list;
+        notifyListeners();
+      }, onError: (e) => print('❌ Error Admin Vendors: $e'));
     }
   }
 

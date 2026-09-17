@@ -404,79 +404,87 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void _handleLoginSubmit() {
+  void _handleLoginSubmit() async {
     final phone = phoneCtrl.text.trim();
     if (phone.isEmpty) {
       _showError('يرجى إدخال رقم الهاتف أو المعرف أولاً');
       return;
     }
 
-    if (selectedRoleIndex == 2) {
-      // 1. مسار المدير
-      if (otpCtrl.text.trim() == 'admin123') {
-        appState.login(UserEntity(
-          id: 'super_admin_1',
-          name: 'مدير المنصة',
-          phone: phone,
-          role: 'super_admin',
-          status: 'active',
-        ));
+    try {
+      if (selectedRoleIndex == 2) {
+        // 1. مسار المدير
+        if (otpCtrl.text.trim() == 'admin123') {
+          await appState.login(UserEntity(
+            id: 'super_admin_1',
+            name: 'مدير المنصة',
+            phone: phone,
+            role: 'super_admin',
+            status: 'active',
+          ));
+        } else {
+          _showError('كود مرور المدير غير صحيح (استخدم: admin123)');
+        }
+      } else if (selectedRoleIndex == 1) {
+        // 2. مسار المورد
+        if (isRegisteringForVendor) {
+          // حقول إجبارية للمورد الجديد
+          if (nameCtrl.text.trim().isEmpty ||
+              addressCtrl.text.trim().isEmpty ||
+              businessActivityCtrl.text.trim().isEmpty ||
+              otpCtrl.text.trim().isEmpty) {
+            _showError('جميع الحقول إجبارية للمورد الجديد (الهاتف، الاسم ثلاثي، العنوان، النشاط، الكود)');
+            return;
+          }
+
+          final newVendor = UserEntity(
+            id: 'vendor_$phone',
+            name: nameCtrl.text.trim(),
+            phone: phone,
+            role: 'vendor',
+            address: addressCtrl.text.trim(),
+            businessActivity: businessActivityCtrl.text.trim(),
+            shopName: businessActivityCtrl.text.trim(),
+            status: 'pending',
+          );
+
+          await appState.login(newVendor);
+          _showSuccess('تم إرسال طلب الانضمام بنجاح! سيتم تفعيل حسابك فور مراجعة مدير المنصة');
+        } else {
+          // مورد له حساب بالفعل
+          if (otpCtrl.text.trim().isEmpty) {
+            _showError('يرجى إدخال كود التأكيد للدخول');
+            return;
+          }
+
+          // محاولة جلب البيانات الحقيقية من الداتابيز أولاً إذا أمكن
+          await appState.login(UserEntity(
+            id: 'vendor_$phone',
+            name: nameCtrl.text.trim().isNotEmpty ? nameCtrl.text.trim() : 'مورد معتمد',
+            phone: phone,
+            role: 'vendor',
+            status: 'active',
+          ));
+        }
       } else {
-        _showError('كود مرور المدير غير صحيح (استخدم: admin123)');
-      }
-    } else if (selectedRoleIndex == 1) {
-      // 2. مسار المورد
-      if (isRegisteringForVendor) {
-        // حقول إجبارية للمورد الجديد: رقم الهاتف، الاسم ثلاثي، العنوان، النشاط التجاري، كود التأكيد
-        if (nameCtrl.text.trim().isEmpty || addressCtrl.text.trim().isEmpty || businessActivityCtrl.text.trim().isEmpty || otpCtrl.text.trim().isEmpty) {
-          _showError('جميع الحقول إجبارية للمورد الجديد (الهاتف، الاسم ثلاثي، العنوان، النشاط، الكود)');
+        // 3. مسار العميل أو صاحب المحل
+        if (nameCtrl.text.trim().isEmpty || addressCtrl.text.trim().isEmpty) {
+          _showError('الاسم بالكامل والعنوان التفصيلي إجباريان للعميل');
           return;
         }
 
-        final newVendor = UserEntity(
-          id: 'vendor_$phone',
+        await appState.login(UserEntity(
+          id: 'client_$phone',
           name: nameCtrl.text.trim(),
           phone: phone,
-          role: 'vendor',
+          role: 'customer',
           address: addressCtrl.text.trim(),
-          businessActivity: businessActivityCtrl.text.trim(),
-          shopName: businessActivityCtrl.text.trim(),
-          status: 'pending', // يدخل بحالة بانتظار الموافقة من قبل المدير
-        );
-
-        appState.login(newVendor);
-        _showSuccess('تم إرسال طلب الانضمام بنجاح! سيتم تفعيل حسابك فور مراجعة مدير المنصة');
-      } else {
-        // مورد له حساب بالفعل: رقم الهاتف والكود
-        if (otpCtrl.text.trim().isEmpty) {
-          _showError('يرجى إدخال كود التأكيد للدخول');
-          return;
-        }
-
-        appState.login(UserEntity(
-          id: 'vendor_$phone',
-          name: nameCtrl.text.trim().isNotEmpty ? nameCtrl.text.trim() : 'مورد معتمد',
-          phone: phone,
-          role: 'vendor',
+          shopName: shopCtrl.text.trim().isEmpty ? null : shopCtrl.text.trim(),
           status: 'active',
         ));
       }
-    } else {
-      // 3. مسار العميل أو صاحب المحل: إجباري الهاتف، الاسم، العنوان. أما اسم المحل اختياري.
-      if (nameCtrl.text.trim().isEmpty || addressCtrl.text.trim().isEmpty) {
-        _showError('الاسم بالكامل والعنوان التفصيلي إجباريان للعميل');
-        return;
-      }
-
-      appState.login(UserEntity(
-        id: 'client_$phone',
-        name: nameCtrl.text.trim(),
-        phone: phone,
-        role: 'customer',
-        address: addressCtrl.text.trim(),
-        shopName: shopCtrl.text.trim().isEmpty ? null : shopCtrl.text.trim(),
-        status: 'active',
-      ));
+    } catch (e) {
+      _showError('حدث خطأ أثناء تسجيل الدخول: $e');
     }
   }
 }

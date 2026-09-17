@@ -12,6 +12,22 @@ class OrderItemEntity {
   });
 
   double get totalPrice => unitPrice * qty;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'product_id': product.id,
+      'qty': qty,
+      'unit_price': unitPrice,
+    };
+  }
+
+  factory OrderItemEntity.fromMap(Map<String, dynamic> map, ProductEntity product) {
+    return OrderItemEntity(
+      product: product,
+      qty: map['qty'] ?? 0,
+      unitPrice: (map['unit_price'] ?? 0.0).toDouble(),
+    );
+  }
 }
 
 class OrderEntity {
@@ -44,4 +60,39 @@ class OrderEntity {
     required this.status,
     this.paymentMethod = 'COD',
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'parent_order_id': parentOrderId,
+      'vendor_id': vendorId,
+      'client_id': clientId,
+      'client_name': clientName,
+      'client_phone': clientPhone,
+      'client_address': clientAddress,
+      'total': total,
+      'savings': savings,
+      'created_at': createdAt.toIso8601String(),
+      'status': status,
+      'payment_method': paymentMethod,
+    };
+  }
+
+  factory OrderEntity.fromMap(Map<String, dynamic> map) {
+    return OrderEntity(
+      id: map['id'] ?? '',
+      parentOrderId: map['parent_order_id'],
+      vendorId: map['vendor_id'] ?? '',
+      clientId: map['client_id'] ?? '',
+      clientName: map['client_name'] ?? '',
+      clientPhone: map['client_phone'] ?? '',
+      clientAddress: map['client_address'],
+      items: [], // Items are usually loaded separately or mapped from a nested response
+      total: (map['total'] ?? 0.0).toDouble(),
+      savings: (map['savings'] ?? 0.0).toDouble(),
+      createdAt: map['created_at'] != null ? DateTime.parse(map['created_at']) : DateTime.now(),
+      status: map['status'] ?? 'pending',
+      paymentMethod: map['payment_method'] ?? 'COD',
+    );
+  }
 }

@@ -57,6 +57,48 @@ class ProductEntity {
 
   bool get isSoldOut => false;
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'vendor_id': vendorId,
+      'name': name,
+      'category': category,
+      'price': price,
+      'unit': unit,
+      'min_order_qty': minOrderQty,
+      'image_path': imagePath,
+      'is_offer': isOffer,
+      'offer_price': offerPrice,
+      'offer_total_qty': offerTotalQty,
+      'offer_remaining_qty': offerRemainingQty,
+      'offer_start_date': offerStartDate?.toIso8601String(),
+      'offer_end_date': offerEndDate?.toIso8601String(),
+    };
+  }
+
+  factory ProductEntity.fromMap(Map<String, dynamic> map) {
+    return ProductEntity(
+      id: map['id'] ?? '',
+      vendorId: map['vendor_id'] ?? '',
+      name: map['name'] ?? '',
+      category: map['category'] ?? '',
+      price: (map['price'] ?? 0.0).toDouble(),
+      unit: map['unit'] ?? '',
+      minOrderQty: map['min_order_qty'] ?? 1,
+      imagePath: map['image_path'],
+      isOffer: map['is_offer'] ?? false,
+      offerPrice: (map['offer_price'] ?? 0.0).toDouble(),
+      offerTotalQty: map['offer_total_qty'] ?? 0,
+      offerRemainingQty: map['offer_remaining_qty'] ?? 0,
+      offerStartDate: map['offer_start_date'] != null
+          ? DateTime.parse(map['offer_start_date'])
+          : null,
+      offerEndDate: map['offer_end_date'] != null
+          ? DateTime.parse(map['offer_end_date'])
+          : null,
+    );
+  }
+
   ProductEntity copyWith({
     String? id,
     String? vendorId,

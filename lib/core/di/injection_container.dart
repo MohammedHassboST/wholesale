@@ -1,6 +1,6 @@
 import 'package:get_it/get_it.dart';
 import '../../domain/repositories/i_cloud_repository.dart';
-import '../../data/repositories/supabase_cloud_service.dart';
+import '../../data/repositories/supabase_repository_impl.dart';
 
 final sl = GetIt.instance;
 
