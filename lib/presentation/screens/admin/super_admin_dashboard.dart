@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../state/app_state.dart';
+import '../../common/widgets/live_status_bar.dart';
 import '../../../core/constants/constants.dart';
 import '../../../domain/entities/user_entity.dart';
 import '../retailer/notifications_page.dart';
@@ -69,20 +70,27 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
               ),
             ],
           ),
-          body: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
-              child: IndexedStack(
-            index: _currentIndex,
+          body: Column(
             children: [
-              _buildOverviewTab(),
-              _buildVendorsManagementTab(),
-              _buildAllOrdersTab(),
-              _buildCategoriesManagementTab(),
-              const NotificationsPage(),
+              const LiveStatusBar(),
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1100),
+                    child: IndexedStack(
+                      index: _currentIndex,
+                      children: [
+                        _buildOverviewTab(),
+                        _buildVendorsManagementTab(),
+                        _buildAllOrdersTab(),
+                        _buildCategoriesManagementTab(),
+                        const NotificationsPage(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ],
-          ),
-          ),
           ),
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _currentIndex,
@@ -597,7 +605,28 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                       if (o.clientAddress != null)
                         Text(trArgs('العنوان: {a}', {'a': o.clientAddress}), style: const TextStyle(fontSize: 10, color: AppColors.inkSoft)),
                       const Divider(height: 12),
-                      ...o.items.map((it) => Text(trArgs('• {n} × {q} ({p})', {'n': it.product.name, 'q': it.qty, 'p': currency(it.unitPrice)}), style: const TextStyle(fontSize: 12))),
+                      if (o.items.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(tr('جاري تحميل أصناف الطلب...'), style: const TextStyle(fontSize: 11, color: AppColors.inkSoft, fontStyle: FontStyle.italic)),
+                        )
+                      else
+                        ...o.items.map((it) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '• ${it.product.name} (${unitLabel(it.product.unit)}) × ${it.qty} [${currency(it.unitPrice)}]',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  Text(
+                                    currency(it.unitPrice * it.qty),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            )),
                       const Divider(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,

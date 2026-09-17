@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../state/app_state.dart';
+import '../../common/widgets/live_status_bar.dart';
 import '../../../core/constants/constants.dart';
 import '../../../domain/entities/product_entity.dart';
 import '../retailer/notifications_page.dart';
@@ -83,22 +84,29 @@ class _VendorDashboardState extends State<VendorDashboard> {
               ),
             ],
           ),
-          body: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
-              child: isBlocked
-                  ? _buildBlockedNotice(status)
-                  : IndexedStack(
-                  index: _currentIndex,
-                  children: [
-                    _buildVendorOrdersTab(),
-                    _buildVendorProductsTab(),
-                    _buildVendorOffersTab(),
-                    _buildVendorReportsTab(),
-                    const NotificationsPage(),
-                  ],
+          body: Column(
+            children: [
+              const LiveStatusBar(),
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1100),
+                    child: isBlocked
+                        ? _buildBlockedNotice(status)
+                        : IndexedStack(
+                            index: _currentIndex,
+                            children: [
+                              _buildVendorOrdersTab(),
+                              _buildVendorProductsTab(),
+                              _buildVendorOffersTab(),
+                              _buildVendorReportsTab(),
+                              const NotificationsPage(),
+                            ],
+                          ),
+                  ),
                 ),
-          ),
+              ),
+            ],
           ),
           bottomNavigationBar: isBlocked
               ? null
@@ -250,18 +258,121 @@ class _VendorDashboardState extends State<VendorDashboard> {
                       Text(trArgs('العميل: {n} | هاتف: {p}', {'n': o.clientName, 'p': o.clientPhone}), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       if (o.clientAddress != null)
                         Text(trArgs('العنوان التفصيلي: {a}', {'a': o.clientAddress}), style: const TextStyle(color: AppColors.inkSoft, fontSize: 11)),
-                      const Divider(height: 14),
-                      ...o.items.map((it) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      const SizedBox(height: 10),
+
+                      // صندوق تفاصيل الأصناف والأسعار المطلوب تجهيزها
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.paper,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.line),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
-                                Text('• ${it.product.name} (${it.product.unit}) × ${it.qty}', style: const TextStyle(fontSize: 12)),
-                                Text(currency(it.unitPrice * it.qty), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                const Icon(Icons.inventory_2_outlined, size: 14, color: AppColors.brandDeep),
+                                const SizedBox(width: 6),
+                                Text(
+                                  trArgs('الأصناف المطلوب تجهيزها ({n})', {'n': o.items.length}),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.brandDeep),
+                                ),
                               ],
                             ),
-                          )),
-                      const Divider(height: 14),
+                            const SizedBox(height: 8),
+                            if (o.items.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Text(
+                                  tr('جاري تحميل أصناف الطلب...'),
+                                  style: const TextStyle(fontSize: 11, color: AppColors.inkSoft, fontStyle: FontStyle.italic),
+                                ),
+                              )
+                            else
+                              ...o.items.map((it) {
+                                final hasDiscount = it.unitPrice < it.product.price;
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.card,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: AppColors.line.withValues(alpha: 0.6)),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              it.product.name,
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Wrap(
+                                              crossAxisAlignment: WrapCrossAlignment.center,
+                                              spacing: 8,
+                                              children: [
+                                                Text(
+                                                  '${currency(it.unitPrice)} / ${unitLabel(it.product.unit)}',
+                                                  style: const TextStyle(fontSize: 11, color: AppColors.brandDeep, fontWeight: FontWeight.bold),
+                                                ),
+                                                if (hasDiscount)
+                                                  Text(
+                                                    currency(it.product.price),
+                                                    style: const TextStyle(
+                                                      fontSize: 9.5,
+                                                      color: AppColors.inkSoft,
+                                                      decoration: TextDecoration.lineThrough,
+                                                    ),
+                                                  ),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                  decoration: BoxDecoration(color: AppColors.paper, borderRadius: BorderRadius.circular(4)),
+                                                  child: Text(
+                                                    '× ${it.qty}',
+                                                    style: const TextStyle(fontSize: 11, color: AppColors.ink, fontWeight: FontWeight.bold),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            currency(it.unitPrice * it.qty),
+                                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppColors.ink),
+                                          ),
+                                          if (hasDiscount)
+                                            Container(
+                                              margin: const EdgeInsets.only(top: 2),
+                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.brandLight,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                tr('سعر عرض مخفض'),
+                                                style: const TextStyle(fontSize: 7.5, color: AppColors.brandDeep, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 18),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -293,83 +404,148 @@ class _VendorDashboardState extends State<VendorDashboard> {
   }
 
   // ─── 2. تبويب الأصناف والمخزون مع دعم وحدات الجملة ورفع الصور ───
+  // ─── 2. تبويب الأصناف والمخزون مع دعم وحدات الجملة ورفع الصور والحد الأدنى ───
   Widget _buildVendorProductsTab() {
     final myProducts = appState.products;
+    final vendorId = appState.currentUser?.id ?? '';
+    final storeMin = appState.vendorMinOrderValue(vendorId);
 
     return Scaffold(
       backgroundColor: AppColors.paper,
-      body: myProducts.isEmpty
-          ? Center(
-              child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.inventory_2_outlined, size: 50, color: AppColors.inkSoft),
-              const SizedBox(height: 10),
-              Text(tr('لم تقم بإضافة أي أصناف بعد'), style: const TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold)),
-            ],
-          ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: myProducts.length,
-              itemBuilder: (context, i) {
-                final p = myProducts[i];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.line),
-                  ),
-                  child: Row(
+      body: Column(
+        children: [
+          // كارت إعدادات الحد الأدنى لطلبات المتجر المجمعة (كافة الأصناف والعروض معاً)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.line),
+              boxShadow: [
+                BoxShadow(color: AppColors.ink.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppColors.brandLight, borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.storefront, color: AppColors.brandDeep, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: AppColors.brandLight,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: (p.imagePath != null && p.imagePath!.startsWith('http'))
-                              ? Image.network(p.imagePath!, fit: BoxFit.cover, errorBuilder: (ctx, err, stack) => const Icon(Icons.inventory_2, color: AppColors.brand))
-                              : (p.imagePath != null && File(p.imagePath!).existsSync())
-                                  ? Image.file(File(p.imagePath!), fit: BoxFit.cover)
-                                  : const Icon(Icons.inventory_2, color: AppColors.brand),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            const SizedBox(height: 2),
-                            Text(trArgs('السعر: {p} / {u}', {'p': currency(p.price), 'u': unitLabel(p.unit)}), style: const TextStyle(color: AppColors.brandDeep, fontWeight: FontWeight.bold, fontSize: 12)),
-                            Text(trArgs('القسم: {c} | الحد الأدنى: {m}', {'c': categoryLabel(p.category), 'm': p.minOrderQty}), style: const TextStyle(color: AppColors.inkSoft, fontSize: 10)),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, color: AppColors.brand, size: 20),
-                            tooltip: tr('تعديل السعر والشرائح'),
-                            onPressed: () => _showEditProductDialog(context, p),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
-                            onPressed: () => appState.deleteProduct(p.id),
-                          ),
-                        ],
+                      Text(tr('الحد الأدنى لطلب المتجر المجمع'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 2),
+                      Text(
+                        storeMin > 0
+                            ? trArgs('محدد بـ: {m} لكافة الأصناف والعروض معاً', {'m': currency(storeMin)})
+                            : tr('غير محدد (أي قيمة مقبولة)'),
+                        style: TextStyle(fontSize: 11, color: storeMin > 0 ? AppColors.brandDeep : AppColors.inkSoft, fontWeight: storeMin > 0 ? FontWeight.bold : FontWeight.normal),
                       ),
                     ],
                   ),
-                );
-              },
+                ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.brand,
+                    side: const BorderSide(color: AppColors.brand),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero,
+                  ),
+                  icon: const Icon(Icons.tune, size: 14),
+                  label: Text(tr('تعديل'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  onPressed: () => _showStoreMinOrderDialog(context),
+                ),
+              ],
             ),
+          ),
+
+          // قائمة الأصناف
+          Expanded(
+            child: myProducts.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.inventory_2_outlined, size: 50, color: AppColors.inkSoft),
+                        const SizedBox(height: 10),
+                        Text(tr('لم تقم بإضافة أي أصناف بعد'), style: const TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: myProducts.length,
+                    itemBuilder: (context, i) {
+                      final p = myProducts[i];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.card,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.line),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: AppColors.brandLight,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Center(
+                                child: (p.imagePath != null && p.imagePath!.startsWith('http'))
+                                    ? Image.network(p.imagePath!, fit: BoxFit.cover, errorBuilder: (ctx, err, stack) => const Icon(Icons.inventory_2, color: AppColors.brand))
+                                    : (p.imagePath != null && File(p.imagePath!).existsSync())
+                                        ? Image.file(File(p.imagePath!), fit: BoxFit.cover)
+                                        : const Icon(Icons.inventory_2, color: AppColors.brand),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  const SizedBox(height: 2),
+                                  Text(trArgs('السعر: {p} / {u}', {'p': currency(p.price), 'u': unitLabel(p.unit)}), style: const TextStyle(color: AppColors.brandDeep, fontWeight: FontWeight.bold, fontSize: 12)),
+                                  Text(trArgs('القسم: {c} | الحد الأدنى: {m}', {'c': categoryLabel(p.category), 'm': p.minOrderQty}), style: const TextStyle(color: AppColors.inkSoft, fontSize: 10)),
+                                  if (p.minOrderValue > 0)
+                                    Text(
+                                      trArgs('الحد الأدنى للشراء: {val}', {'val': currency(p.minOrderValue)}),
+                                      style: const TextStyle(color: Color(0xFFB45309), fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined, color: AppColors.brand, size: 20),
+                                  tooltip: tr('تعديل السعر والشرائح'),
+                                  onPressed: () => _showEditProductDialog(context, p),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
+                                  onPressed: () => appState.deleteProduct(p.id),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.brand,
         foregroundColor: Colors.white,
@@ -380,10 +556,70 @@ class _VendorDashboardState extends State<VendorDashboard> {
     );
   }
 
+  void _showStoreMinOrderDialog(BuildContext context) {
+    final vendorId = appState.currentUser?.id ?? '';
+    final currentVal = appState.vendorMinOrderValue(vendorId);
+    final ctrl = TextEditingController(text: currentVal > 0 ? currentVal.toStringAsFixed(0) : '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.storefront, color: AppColors.brand),
+            const SizedBox(width: 8),
+            Expanded(child: Text(tr('إعدادات الحد الأدنى لطلبات المتجر'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tr('تحديد الحد الأدنى لقيمة الشراء الإجمالية من متجرك (كافة الأصناف والعروض معاً) لتأكيد أي طلب.'),
+              style: const TextStyle(fontSize: 12, color: AppColors.inkSoft),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: tr('الحد الأدنى لطلب المتجر (ج.م)'),
+                hintText: 'مثال: 500 أو 1000 (0 للإلغاء)',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(tr('إلغاء')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
+            onPressed: () async {
+              final val = double.tryParse(ctrl.text.trim()) ?? 0.0;
+              await appState.setVendorMinOrderValue(vendorId, val);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(tr('تم تحديث الحد الأدنى للمتجر بنجاح'))),
+                );
+              }
+            },
+            child: Text(tr('حفظ التعديلات')),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAddProductModal(BuildContext context) {
     final nameCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
     final minQtyCtrl = TextEditingController(text: '1');
+    final minOrderValueCtrl = TextEditingController();
     final imageUrlCtrl = TextEditingController();
     final customUnitCtrl = TextEditingController();
 
@@ -424,13 +660,22 @@ class _VendorDashboardState extends State<VendorDashboard> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                TextField(
+                  controller: minOrderValueCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: tr('الحد الأدنى لقيمة الشراء من هذا الصنف (ج.م)'),
+                    hintText: '0 (اختياري)',
+                  ),
+                ),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: kWholesaleUnits.contains(selectedUnit) ? selectedUnit : kWholesaleUnits.first,
                   items: kWholesaleUnits.map((u) => DropdownMenuItem(value: u, child: Text(unitLabel(u)))).toList(),
                   onChanged: (v) => setModalState(() => selectedUnit = v!),
                   decoration: InputDecoration(labelText: tr('وحدة بيع الجملة')),
                 ),
-                if (selectedUnit == 'أخرى (تحديد يدوي)') ...[
+                if (selectedUnit == 'أخرى (تحديد يدودي)' || selectedUnit == 'أخرى (تحديد يدوي)') ...[
                   const SizedBox(height: 10),
                   TextField(controller: customUnitCtrl, decoration: InputDecoration(labelText: tr('اسم الوحدة المخصصة (مثال: طرد 24 قطعة)'))),
                 ],
@@ -538,6 +783,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
                         price: double.tryParse(priceCtrl.text) ?? 0.0,
                         unit: finalUnit,
                         minOrderQty: int.tryParse(minQtyCtrl.text) ?? 1,
+                        minOrderValue: double.tryParse(minOrderValueCtrl.text) ?? 0.0,
                         imagePath: imagePath,
                         priceTiers: List.unmodifiable(tiers),
                       ));
@@ -596,6 +842,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
   void _showEditProductDialog(BuildContext context, ProductEntity p) {
     final priceCtrl = TextEditingController(text: p.price.toStringAsFixed(0));
     final minQtyCtrl = TextEditingController(text: p.minOrderQty.toString());
+    final minOrderValueCtrl = TextEditingController(text: p.minOrderValue > 0 ? p.minOrderValue.toStringAsFixed(0) : '');
     final tiers = p.priceTiers.map((t) => PriceTier(minQty: t.minQty, price: t.price)).toList();
 
     showModalBottomSheet(
@@ -625,6 +872,15 @@ class _VendorDashboardState extends State<VendorDashboard> {
                     const SizedBox(width: 10),
                     Expanded(child: TextField(controller: minQtyCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('الحد الأدنى للطلب')))),
                   ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: minOrderValueCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: tr('الحد الأدنى لقيمة الشراء من هذا الصنف (ج.م)'),
+                    hintText: '0 (اختياري)',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -662,6 +918,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
                       appState.updateProduct(p.copyWith(
                         price: double.tryParse(priceCtrl.text) ?? p.price,
                         minOrderQty: int.tryParse(minQtyCtrl.text) ?? p.minOrderQty,
+                        minOrderValue: double.tryParse(minOrderValueCtrl.text) ?? 0.0,
                         priceTiers: List.unmodifiable(tiers),
                       ));
                       Navigator.pop(ctx);
@@ -759,6 +1016,29 @@ class _VendorDashboardState extends State<VendorDashboard> {
                             style: const TextStyle(fontSize: 12, color: AppColors.brandDeep, fontWeight: FontWeight.bold)),
                         Text(trArgs('الكمية المتبقية: {r} من {t}', {'r': offer.offerRemainingQty, 't': offer.offerTotalQty}),
                             style: const TextStyle(fontSize: 11, color: AppColors.inkSoft)),
+                        if (offer.offerMinQty > 1 || offer.offerMinOrderValue > 0) ...[
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              if (offer.offerMinQty > 1)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: AppColors.brandLight, borderRadius: BorderRadius.circular(6)),
+                                  child: Text(trArgs('شرط العرض: شراء {q} {u} فأكثر', {'q': offer.offerMinQty, 'u': unitLabel(offer.unit)}),
+                                      style: const TextStyle(fontSize: 10, color: AppColors.brandDeep, fontWeight: FontWeight.bold)),
+                                ),
+                              if (offer.offerMinOrderValue > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: AppColors.brandLight, borderRadius: BorderRadius.circular(6)),
+                                  child: Text(trArgs('شرط العرض: طلب بقيمة {v} من المورد', {'v': currency(offer.offerMinOrderValue)}),
+                                      style: const TextStyle(fontSize: 10, color: AppColors.brandDeep, fontWeight: FontWeight.bold)),
+                                ),
+                            ],
+                          ),
+                        ],
                         if (offer.offerStartDate != null || offer.offerEndDate != null)
                           Text(
                             trArgs('الفترة: {s} إلى {e}', {'s': offer.offerStartDate != null ? formatEgyptDate(offer.offerStartDate!) : tr('الآن'), 'e': offer.offerEndDate != null ? formatEgyptDate(offer.offerEndDate!) : tr('حتى نفاذ الكمية')}),
@@ -794,6 +1074,8 @@ class _VendorDashboardState extends State<VendorDashboard> {
     String selectedProdId = availableProducts.first.id;
     final offerPriceCtrl = TextEditingController();
     final qtyCtrl = TextEditingController();
+    final offerMinQtyCtrl = TextEditingController(text: '1');
+    final offerMinOrderValueCtrl = TextEditingController();
     DateTime? startDate;
     DateTime? endDate;
 
@@ -817,6 +1099,47 @@ class _VendorDashboardState extends State<VendorDashboard> {
                 TextField(controller: offerPriceCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('سعر العرض المخفض (ج.م)'))),
                 const SizedBox(height: 10),
                 TextField(controller: qtyCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('الكمية الإجمالية المخصصة للعرض'))),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.paper,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.rule, size: 16, color: AppColors.brand),
+                          const SizedBox(width: 6),
+                          Text(tr('شروط الاستفادة من العرض (اختياري)'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: offerMinQtyCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: tr('أدنى كمية لتفعيل العرض'),
+                          hintText: '1 (الافتراضي)',
+                          isDense: true,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: offerMinOrderValueCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: tr('أدنى قيمة لطلب المورد لتفعيل العرض (ج.م)'),
+                          hintText: '0 (بدون شرط قيمة)',
+                          isDense: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
@@ -862,6 +1185,8 @@ class _VendorDashboardState extends State<VendorDashboard> {
                 final price = double.tryParse(offerPriceCtrl.text) ?? 0.0;
                 final qty = int.tryParse(qtyCtrl.text) ?? 0;
                 if (price <= 0 || qty <= 0) return;
+                final minQ = int.tryParse(offerMinQtyCtrl.text) ?? 1;
+                final minVal = double.tryParse(offerMinOrderValueCtrl.text) ?? 0.0;
 
                 appState.createOffer(
                   selectedProdId,
@@ -869,6 +1194,8 @@ class _VendorDashboardState extends State<VendorDashboard> {
                   qty,
                   startDate: startDate,
                   endDate: endDate,
+                  offerMinQty: minQ > 0 ? minQ : 1,
+                  offerMinOrderValue: minVal >= 0 ? minVal : 0.0,
                 );
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('تم تجهيز وتفعيل العرض بنجاح!'))));

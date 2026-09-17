@@ -92,7 +92,8 @@ class CartDrawer extends StatelessWidget {
                             final vendorId = entry.key;
                             final items = entry.value;
                             final subtotal = appState.vendorSubtotal(vendorId);
-                            final meetsMin = subtotal >= appState.minOrderValuePerVendor;
+                            final vendorMin = appState.vendorMinOrderValue(vendorId);
+                            final meetsMin = appState.isVendorCartValid(vendorId);
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 16),
@@ -121,14 +122,23 @@ class CartDrawer extends StatelessWidget {
                                           Text(trArgs('طلب المورد: {id}', {'id': vendorId}), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppColors.brandDeep)),
                                         ],
                                       ),
-                                      Text(
-                                        trArgs('الحد الأدنى: {m}', {'m': currency(appState.minOrderValuePerVendor)}),
-                                        style: const TextStyle(fontSize: 10, color: AppColors.inkSoft),
-                                      ),
+                                      if (vendorMin > 0)
+                                        Text(
+                                          trArgs('الحد الأدنى: {m}', {'m': currency(vendorMin)}),
+                                          style: const TextStyle(fontSize: 10, color: AppColors.inkSoft),
+                                        ),
                                     ],
                                   ),
                                   const Divider(height: 14),
                                   ...items.map((cartItem) {
+                                    final p = cartItem.product;
+                                    // Calculate subtotal manually since cartItem.subtotal doesn't exist
+                                    final itemSubtotal = cartItem.unitPrice * cartItem.qty;
+                                    final itemMinMet = appState.isCartItemValid(cartItem);
+                                    final isOffer = p.isOfferActive;
+                                    final hasOfferConds = isOffer && (p.offerMinQty > 1 || p.offerMinOrderValue > 0);
+                                    final qualifies = p.qualifiesForOffer(cartItem.qty, subtotal);
+
                                     return Padding(
                                       padding: const EdgeInsets.symmetric(vertical: 6),
                                       child: Row(
@@ -137,42 +147,88 @@ class CartDrawer extends StatelessWidget {
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text(cartItem.product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                                Row(
+                                                Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                                Wrap(
+                                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                                  spacing: 6,
                                                   children: [
                                                     Text(
-                                                      '${currency(cartItem.unitPrice)} / ${cartItem.product.unit}',
+                                                      '${currency(cartItem.unitPrice)} / ${p.unit}',
                                                       style: const TextStyle(fontSize: 11, color: AppColors.brandDeep, fontWeight: FontWeight.bold),
                                                     ),
-                                                    if (cartItem.product.isOffer && !cartItem.product.isOfferActive) ...[
-                                                      const SizedBox(width: 8),
+                                                    if (p.isOffer && !p.isOfferActive)
                                                       Container(
                                                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                                        decoration: BoxDecoration(color: AppColors.danger.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                                                        child: const Text(
-                                                          'انتهى العرض',
-                                                          style: TextStyle(color: AppColors.danger, fontSize: 8, fontWeight: FontWeight.bold),
+                                                        decoration: BoxDecoration(color: AppColors.amberSoft, borderRadius: BorderRadius.circular(4)),
+                                                        child: Text(
+                                                          tr('بالسعر الأصلي (انتهى العرض)'),
+                                                          style: const TextStyle(color: Color(0xFF92400E), fontSize: 8, fontWeight: FontWeight.bold),
+                                                        ),
+                                                      )
+                                                    else if (hasOfferConds)
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: qualifies ? Colors.green.shade50 : AppColors.amberSoft,
+                                                          borderRadius: BorderRadius.circular(4),
+                                                          border: Border.all(color: qualifies ? Colors.green.shade300 : Colors.amber.shade300),
+                                                        ),
+                                                        child: Text(
+                                                          qualifies ? tr('مؤهل لسعر العرض 🎉') : tr('غير مؤهل لسعر العرض (شروط غير مكتملة)'),
+                                                          style: TextStyle(
+                                                            color: qualifies ? Colors.green.shade800 : const Color(0xFF92400E),
+                                                            fontSize: 8,
+                                                            fontWeight: FontWeight.bold,
+                                                          ),
                                                         ),
                                                       ),
-                                                    ],
                                                   ],
                                                 ),
+                                                if (hasOfferConds && !qualifies) ...[
+                                                  if (cartItem.qty < p.offerMinQty)
+                                                    Padding(
+                                                      padding: const EdgeInsets.only(top: 2),
+                                                      child: Text(
+                                                        trArgs('سعر العرض يتطلب شراء {q} {u}', {'q': p.offerMinQty, 'u': unitLabel(p.unit)}),
+                                                        style: TextStyle(fontSize: 8.5, color: Colors.amber.shade900, fontWeight: FontWeight.bold),
+                                                      ),
+                                                    )
+                                                  else if (subtotal < p.offerMinOrderValue)
+                                                    Padding(
+                                                      padding: const EdgeInsets.only(top: 2),
+                                                      child: Text(
+                                                        trArgs('سعر العرض يتطلب طلب بقيمة {v} من المورد', {'v': currency(p.offerMinOrderValue)}),
+                                                        style: TextStyle(fontSize: 8.5, color: Colors.amber.shade900, fontWeight: FontWeight.bold),
+                                                      ),
+                                                    ),
+                                                ],
+                                                if (!itemMinMet)
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(top: 2),
+                                                    child: Text(
+                                                      trArgs('يتبقى {d} للحد الأدنى للمنتج!', {'d': currency(p.minOrderValue - itemSubtotal)}),
+                                                      style: const TextStyle(color: AppColors.danger, fontSize: 9.5, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ),
                                               ],
                                             ),
                                           ),
-                                          Row(
-                                            children: [
-                                              IconButton(
-                                                icon: const Icon(Icons.remove_circle_outline, size: 20, color: AppColors.danger),
-                                                onPressed: () => appState.changeQty(cartItem.product.id, cartItem.qty - cartItem.product.minOrderQty),
-                                              ),
-                                              Text('${cartItem.qty}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                              IconButton(
-                                                icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.brand),
-                                                onPressed: () => appState.changeQty(cartItem.product.id, cartItem.qty + cartItem.product.minOrderQty),
-                                              ),
-                                            ],
-                                          ),
+                                          Builder(builder: (context) {
+                                            final canIncrease = !isOffer || (cartItem.qty + p.minOrderQty <= p.offerRemainingQty);
+                                            return Row(
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(Icons.remove_circle_outline, size: 20, color: AppColors.danger),
+                                                  onPressed: () => appState.changeQty(p.id, cartItem.qty - p.minOrderQty),
+                                                ),
+                                                Text('${cartItem.qty}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                                IconButton(
+                                                  icon: Icon(Icons.add_circle_outline, size: 20, color: canIncrease ? AppColors.brand : Colors.grey.shade400),
+                                                  onPressed: canIncrease ? () => appState.changeQty(p.id, cartItem.qty + p.minOrderQty) : null,
+                                                ),
+                                              ],
+                                            );
+                                          }),
                                         ],
                                       ),
                                     );
@@ -182,12 +238,12 @@ class CartDrawer extends StatelessWidget {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(trArgs('مجموع طلب المورد: {s}', {'s': currency(subtotal)}), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-                                      if (!meetsMin)
+                                      if (vendorMin > 0 && !meetsMin)
                                         Text(
-                                          trArgs('يتبقى {d} للحد الأدنى!', {'d': currency(appState.minOrderValuePerVendor - subtotal)}),
+                                          trArgs('يتبقى {d} للحد الأدنى لطلب المورد!', {'d': currency(vendorMin - subtotal)}),
                                           style: const TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.bold),
                                         )
-                                      else
+                                      else if (vendorMin > 0)
                                         Row(
                                           children: [
                                             const Icon(Icons.check_circle, color: Colors.green, size: 14),
@@ -275,7 +331,7 @@ class CartDrawer extends StatelessWidget {
                           child: appState.isCheckingOut
                               ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                               : Text(
-                                  isValid ? tr('تأكيد وتقسيم الطلب (COD)') : tr('لم تكتمل الحدود الدنيا للموردين'),
+                                  isValid ? tr('تأكيد وتقسيم الطلب (COD)') : tr('لم تكتمل الحدود الدنيا للشراء'),
                                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
                                 ),
                         ),

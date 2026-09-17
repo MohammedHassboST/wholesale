@@ -94,18 +94,121 @@ class OrdersPage extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(trArgs('المورد: {id}', {'id': o.vendorId}), style: const TextStyle(fontSize: 11, color: AppColors.brandDeep, fontWeight: FontWeight.bold)),
                           Text(trArgs('التاريخ: {d}', {'d': formatEgyptDateTime(o.createdAt)}), style: const TextStyle(fontSize: 10, color: AppColors.inkSoft)),
-                          const Divider(height: 14),
-                          ...o.items.map((it) => Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 2),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          const SizedBox(height: 10),
+
+                          // صندوق تفاصيل الأصناف والأسعار
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.paper,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.line),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   children: [
-                                    Text(trArgs('• {n} ({u}) × {q}', {'n': it.product.name, 'u': unitLabel(it.product.unit), 'q': it.qty}), style: const TextStyle(fontSize: 12)),
-                                    Text(currency(it.unitPrice * it.qty), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    const Icon(Icons.shopping_bag_outlined, size: 14, color: AppColors.brandDeep),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      trArgs('الأصناف ({n})', {'n': o.items.length}),
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.brandDeep),
+                                    ),
                                   ],
                                 ),
-                              )),
-                          const Divider(height: 14),
+                                const SizedBox(height: 8),
+                                if (o.items.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                    child: Text(
+                                      tr('جاري تحميل أصناف الطلب...'),
+                                      style: const TextStyle(fontSize: 11, color: AppColors.inkSoft, fontStyle: FontStyle.italic),
+                                    ),
+                                  )
+                                else
+                                  ...o.items.map((it) {
+                                    final hasDiscount = it.unitPrice < it.product.price;
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 6),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.card,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: AppColors.line.withValues(alpha: 0.6)),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  it.product.name,
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                                ),
+                                                const SizedBox(height: 3),
+                                                Wrap(
+                                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                                  spacing: 8,
+                                                  children: [
+                                                    Text(
+                                                      '${currency(it.unitPrice)} / ${unitLabel(it.product.unit)}',
+                                                      style: const TextStyle(fontSize: 11, color: AppColors.brandDeep, fontWeight: FontWeight.bold),
+                                                    ),
+                                                    if (hasDiscount)
+                                                      Text(
+                                                        currency(it.product.price),
+                                                        style: const TextStyle(
+                                                          fontSize: 9.5,
+                                                          color: AppColors.inkSoft,
+                                                          decoration: TextDecoration.lineThrough,
+                                                        ),
+                                                      ),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                      decoration: BoxDecoration(color: AppColors.paper, borderRadius: BorderRadius.circular(4)),
+                                                      child: Text(
+                                                        '× ${it.qty}',
+                                                        style: const TextStyle(fontSize: 11, color: AppColors.ink, fontWeight: FontWeight.bold),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                currency(it.unitPrice * it.qty),
+                                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppColors.ink),
+                                              ),
+                                              if (hasDiscount)
+                                                Container(
+                                                  margin: const EdgeInsets.only(top: 2),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.brandLight,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: Text(
+                                                    tr('سعر عرض مخفض'),
+                                                    style: const TextStyle(fontSize: 7.5, color: AppColors.brandDeep, fontWeight: FontWeight.bold),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 18),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -113,6 +216,11 @@ class OrdersPage extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(trArgs('الإجمالي: {t}', {'t': currency(o.total)}), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppColors.brandDeep)),
+                                  if (o.savings > 0)
+                                    Text(
+                                      trArgs('إجمالي التوفير: {s}', {'s': currency(o.savings)}),
+                                      style: const TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold),
+                                    ),
                                   Text(trArgs('طريقة الدفع: {m}', {'m': o.paymentMethod}), style: const TextStyle(fontSize: 10, color: AppColors.inkSoft)),
                                 ],
                               ),

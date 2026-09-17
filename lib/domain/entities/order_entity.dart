@@ -16,8 +16,11 @@ class OrderItemEntity {
   Map<String, dynamic> toMap() {
     return {
       'product_id': product.id,
+      'product_name': product.name,
+      'unit': product.unit,
       'qty': qty,
       'unit_price': unitPrice,
+      'total_price': totalPrice,
     };
   }
 

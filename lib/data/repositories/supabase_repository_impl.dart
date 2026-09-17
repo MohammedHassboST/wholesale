@@ -196,6 +196,21 @@ class SupabaseRepositoryImpl implements ICloudRepository {
   }
 
   @override
+  Stream<Map<String, dynamic>?> getSettingsStream(String id) {
+    return _service.getSettingsStream(id);
+  }
+
+  @override
+  Stream<List<Map<String, dynamic>>> getAllSettingsStream() {
+    return _service.getAllSettingsStream();
+  }
+
+  @override
+  Future<void> saveSettings(String id, Map<String, dynamic> data) async {
+    await _service.upsertSettings(id, data);
+  }
+
+  @override
   Future<void> seedInitialData() async {
     // Placeholder
   }

@@ -43,6 +43,11 @@ abstract class ICloudRepository {
   Stream<List<NotificationEntity>> getNotificationsStream();
   Future<void> sendNotification(NotificationEntity notification);
 
+  // ─── إعدادات الموردين والمنصة ───
+  Stream<Map<String, dynamic>?> getSettingsStream(String id);
+  Stream<List<Map<String, dynamic>>> getAllSettingsStream();
+  Future<void> saveSettings(String id, Map<String, dynamic> data);
+
   // ─── تهيئة البيانات الحسابية ───
   Future<void> seedInitialData();
 }

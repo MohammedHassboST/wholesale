@@ -4,6 +4,7 @@ import 'orders_page.dart';
 import 'notifications_page.dart';
 import 'profile_page.dart';
 import '../../state/app_state.dart';
+import '../../common/widgets/live_status_bar.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/l10n/app_strings.dart';
 
@@ -23,13 +24,20 @@ class _RetailerShellState extends State<RetailerShell> {
       animation: appState,
       builder: (context, _) {
         return Scaffold(
-          body: IndexedStack(
-            index: index,
-            children: const [
-              StorePage(),
-              OrdersPage(),
-              NotificationsPage(),
-              ProfilePage(),
+          body: Column(
+            children: [
+              const LiveStatusBar(),
+              Expanded(
+                child: IndexedStack(
+                  index: index,
+                  children: const [
+                    StorePage(),
+                    OrdersPage(),
+                    NotificationsPage(),
+                    ProfilePage(),
+                  ],
+                ),
+              ),
             ],
           ),
           bottomNavigationBar: BottomNavigationBar(

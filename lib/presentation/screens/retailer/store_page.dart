@@ -176,6 +176,28 @@ class _StorePageState extends State<StorePage> {
                     ],
                   ),
                 ),
+              if (selectedVendorFilter != null && selectedVendorFilter != 'الكل' && appState.vendorMinOrderValue(selectedVendorFilter!) > 0)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.brandLight,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 16, color: AppColors.brandDeep),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          trArgs('الحد الأدنى لطلبات هذا المتجر: {val} ج.م', {'val': currency(appState.vendorMinOrderValue(selectedVendorFilter!))}),
+                          style: const TextStyle(fontSize: 11, color: AppColors.brandDeep, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 6),
 
               // شريط التصنيفات
@@ -212,7 +234,7 @@ class _StorePageState extends State<StorePage> {
                         padding: const EdgeInsets.all(12),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: _gridCount(context),
-                          childAspectRatio: 0.68,
+                          childAspectRatio: 0.58,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 10,
                         ),

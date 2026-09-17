@@ -178,7 +178,42 @@ class SupabaseCloudService {
         'p_product_id': productId,
         'p_new_qty': newQty,
       });
+      return;
     } catch (e) {
+      debugPrint('ℹ️ [Orders] تعذر استدعاء RPC ($e)، جاري التحديث المباشر لبند الطلب...');
+    }
+
+    try {
+      if (newQty <= 0) {
+        await _supabase
+            .from('order_items')
+            .delete()
+            .match({'order_id': orderId, 'product_id': productId});
+      } else {
+        await _supabase
+            .from('order_items')
+            .update({'qty': newQty})
+            .match({'order_id': orderId, 'product_id': productId});
+      }
+
+      final rows = await _supabase
+          .from('order_items')
+          .select('qty, unit_price')
+          .eq('order_id', orderId);
+
+      double newTotal = 0;
+      for (final r in rows) {
+        final q = (r['qty'] as num?)?.toInt() ?? 1;
+        final p = (r['unit_price'] as num?)?.toDouble() ?? 0.0;
+        newTotal += (q * p);
+      }
+
+      await _supabase
+          .from('orders')
+          .update({'total': newTotal, 'updated_at': DateTime.now().toIso8601String()})
+          .eq('id', orderId);
+    } catch (err) {
+      debugPrint('❌ [Orders] خطأ في تحديث بند الطلب: $err');
       rethrow;
     }
   }
@@ -197,17 +232,119 @@ class SupabaseCloudService {
 
   Future<bool> placeOrdersAtomic(List<OrderEntity> orders) async {
     if (orders.isEmpty) return true;
-    final payload = [
-      for (final o in orders)
-        {
-          ...o.toMap(),
-          'items': [for (final it in o.items) it.toMap()],
-        },
-    ];
+
+    // 1. محاولة استدعاء الدالة السحابية RPC في حال كانت مفعّلة في Supabase
     try {
+      final payload = [
+        for (final o in orders)
+          {
+            ...o.toMap(),
+            'items': [for (final it in o.items) it.toMap()],
+          },
+      ];
       await _supabase.rpc('place_orders_atomic', params: {'p_orders': payload});
+      debugPrint('✅ [Checkout] تم تأكيد الطلب بنجاح عبر RPC');
+      return true;
+    } catch (rpcErr) {
+      debugPrint('ℹ️ [Checkout] تعذر استدعاء RPC ($rpcErr)؛ جاري التحقق من المخزون والتنفيذ المباشر...');
+    }
+
+    // 2. التحقق المباشر من المخزون وتأكيد الطلبات وخصم الكميات
+    try {
+      // حصر الكميات المطلوبة كـ "عروض مخفضة" فقط (التي يقل سعرها عن السعر الأصلي)
+      final Map<String, int> requiredOfferQuantities = {};
+      for (final order in orders) {
+        for (final item in order.items) {
+          final pid = item.product.id;
+          // إذا كان البند مشترياً بسعر العرض المخفض نطلب التحقق من مخزون العرض
+          if (item.unitPrice < item.product.price) {
+            requiredOfferQuantities[pid] = (requiredOfferQuantities[pid] ?? 0) + item.qty;
+          }
+        }
+      }
+
+      // في حال وجود بنود مشتراة بسعر العرض، نتحقق من مخزون العروض في السيرفر
+      if (requiredOfferQuantities.isNotEmpty) {
+        final pids = requiredOfferQuantities.keys.toList();
+        final freshRows = await _supabase
+            .from('products')
+            .select('id, is_offer, offer_remaining_qty')
+            .inFilter('id', pids);
+
+        final Map<String, int> serverStock = {};
+        for (final row in freshRows) {
+          final id = row['id']?.toString() ?? '';
+          final isOffer = row['is_offer'] == true;
+          final remaining = (row['offer_remaining_qty'] as num?)?.toInt() ?? 0;
+          if (isOffer) {
+            serverStock[id] = remaining;
+          }
+        }
+
+        // التحقق من كفاية مخزون العرض
+        for (final entry in requiredOfferQuantities.entries) {
+          final pid = entry.key;
+          final requestedQty = entry.value;
+          final available = serverStock[pid] ?? 0;
+          if (available < requestedQty) {
+            debugPrint('❌ [Checkout] مخزون العرض غير كافٍ للمنتج $pid: المطلوب $requestedQty، المتاح $available');
+            return false;
+          }
+        }
+      }
+
+      // حفظ الطلبات وبنودها
+      for (final order in orders) {
+        await _supabase.from('orders').insert(order.toMap());
+
+        final itemsPayload = order.items.map((item) {
+          final m = item.toMap();
+          m['order_id'] = order.id;
+          return m;
+        }).toList();
+
+        await _supabase.from('order_items').insert(itemsPayload);
+      }
+
+      // خصم الكميات من مخزون العروض للمنتجات المشتراة بسعر العرض فقط
+      for (final entry in requiredOfferQuantities.entries) {
+        final pid = entry.key;
+        final qtyToDeduct = entry.value;
+        try {
+          final row = await _supabase
+              .from('products')
+              .select('offer_remaining_qty')
+              .eq('id', pid)
+              .single();
+          final current = (row['offer_remaining_qty'] as num?)?.toInt() ?? 0;
+          final newQty = (current - qtyToDeduct) < 0 ? 0 : (current - qtyToDeduct);
+          await _supabase
+              .from('products')
+              .update({'offer_remaining_qty': newQty})
+              .eq('id', pid);
+          debugPrint('✅ [Checkout] تم خصم $qtyToDeduct من عرض $pid. المتبقي: $newQty');
+        } catch (e) {
+          debugPrint('⚠️ [Checkout] تعذر تحديث مخزون العرض للمنتج $pid: $e');
+        }
+      }
+
+      // إرسال إشعارات لحظية للموردين
+      for (final order in orders) {
+        try {
+          await _supabase.from('notifications').insert({
+            'title': '📦 طلب جديد في سوق الجملة!',
+            'body': 'طلب جديد #${order.id} من العميل (${order.clientName}) بقيمة ${order.total} ج.م',
+            'created_at': DateTime.now().toIso8601String(),
+            'target_phone': order.vendorId,
+            'payload': 'order:${order.id}',
+            'is_read': false,
+          });
+        } catch (_) {}
+      }
+
       return true;
     } catch (e) {
+      debugPrint('❌ [Checkout] خطأ غير متوقع أثناء إتمام الطلب: $e');
       return false;
     }
   }
@@ -365,6 +502,10 @@ class SupabaseCloudService {
         .map((maps) => maps.isEmpty ? null : maps.first);
   }
 
+  Stream<List<Map<String, dynamic>>> getAllSettingsStream() {
+    return _supabase.from('settings').stream(primaryKey: ['id']);
+  }
+
   Future<void> upsertSettings(String id, Map<String, dynamic> data) async {
     await _supabase.from('settings').upsert({
       'id': id,
@@ -382,9 +523,16 @@ class SupabaseCloudService {
     final orders = maps.map((m) => OrderEntity.fromMap(m)).toList();
     try {
       final orderIds = orders.map((o) => o.id).toList();
-      final itemsRows = List<Map<String, dynamic>>.from(
+      var itemsRows = List<Map<String, dynamic>>.from(
         await _supabase.from('order_items').select().inFilter('order_id', orderIds),
       );
+      if (itemsRows.isEmpty && orderIds.isNotEmpty) {
+        // إعادة المحاولة بعد مهلة وجيزة لتفادي سباق الـ Realtime stream مع إدراج بنود الطلب
+        await Future.delayed(const Duration(milliseconds: 500));
+        itemsRows = List<Map<String, dynamic>>.from(
+          await _supabase.from('order_items').select().inFilter('order_id', orderIds),
+        );
+      }
       if (itemsRows.isEmpty) return orders;
 
       final productIds = itemsRows
@@ -394,12 +542,16 @@ class SupabaseCloudService {
           .toList();
       final productsById = <String, ProductEntity>{};
       if (productIds.isNotEmpty) {
-        final prodRows = List<Map<String, dynamic>>.from(
-          await _supabase.from('products').select().inFilter('id', productIds),
-        );
-        for (final r in prodRows) {
-          final p = ProductEntity.fromMap(r);
-          productsById[p.id] = p;
+        try {
+          final prodRows = List<Map<String, dynamic>>.from(
+            await _supabase.from('products').select().inFilter('id', productIds),
+          );
+          for (final r in prodRows) {
+            final p = ProductEntity.fromMap(r);
+            productsById[p.id] = p;
+          }
+        } catch (e) {
+          debugPrint('⚠️ [Orders] تعذر جلب تفاصيل المنتجات، الاعتماد على بيانات البنود المحفوظة: $e');
         }
       }
 
@@ -409,8 +561,23 @@ class SupabaseCloudService {
         final pid = r['product_id']?.toString() ?? '';
         final qty = (r['qty'] as num?)?.toInt() ?? 1;
         final unitPrice = (r['unit_price'] as num?)?.toDouble() ?? 0.0;
-        final product = productsById[pid] ??
-            ProductEntity(id: pid, vendorId: '', name: 'صنف محذوف', category: '', price: unitPrice, unit: '');
+        final pName = (r['product_name']?.toString() ?? '').trim().isNotEmpty
+            ? r['product_name'].toString()
+            : (productsById[pid]?.name.isNotEmpty == true ? productsById[pid]!.name : 'صنف');
+        final pUnit = (r['unit']?.toString() ?? '').trim().isNotEmpty
+            ? r['unit'].toString()
+            : (productsById[pid]?.unit.isNotEmpty == true ? productsById[pid]!.unit : 'وحدة');
+        final baseProd = productsById[pid];
+        final product = baseProd != null
+            ? baseProd.copyWith(name: pName, unit: pUnit)
+            : ProductEntity(
+                id: pid,
+                vendorId: '',
+                name: pName,
+                category: '',
+                price: unitPrice,
+                unit: pUnit,
+              );
         itemsByOrder.putIfAbsent(oid, () => []).add(
               OrderItemEntity(product: product, qty: qty, unitPrice: unitPrice),
             );

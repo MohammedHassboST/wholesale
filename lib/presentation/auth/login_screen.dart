@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../domain/entities/user_entity.dart';
-import '../../../core/constants/constants.dart';
-import '../../../core/l10n/app_strings.dart';
+import '../../domain/entities/user_entity.dart';
+import '../../core/constants/constants.dart';
+import '../../core/l10n/app_strings.dart';
+import '../../core/config/app_config.dart';
 import '../state/app_state.dart';
+import '../common/widgets/live_status_bar.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -51,277 +53,284 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: AppColors.paper,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // الشعار والعنوان
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.brandLight,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.brand.withValues(alpha: 0.2),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.storefront_rounded, size: 40, color: AppColors.brand),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Text(
-                      tr('منصة وُفّرت - Waffart B2B'),
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.ink),
-                    ),
-                  ),
-                  Center(
-                    child: Text(
-                      tr('سوق الجملة الذكي ومنصة التجارة المتكاملة'),
-                      style: const TextStyle(fontSize: 12, color: AppColors.inkSoft, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-
-                  // 1. شريط الاختيار المستقيم المقسم بالتساوي لـ 3 أدوار
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: AppColors.card,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.line),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.ink.withValues(alpha: 0.04),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(child: _buildRoleTab(tr('العميل / المحل'), 0, Icons.person_outline)),
-                        const SizedBox(width: 4),
-                        Expanded(child: _buildRoleTab(tr('المورد'), 1, Icons.business_outlined)),
-                        const SizedBox(width: 4),
-                        Expanded(child: _buildRoleTab(tr('المدير'), 2, Icons.admin_panel_settings_outlined)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // 2. محتوى الحقول حسب الدور المختار
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.card,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.line),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.ink.withValues(alpha: 0.03),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
+        child: Column(
+          children: [
+            const LiveStatusBar(showWhenConnected: false),
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 500),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (selectedRoleIndex == 2) ...[
-                          // --- مسار المدير ---
-                          Row(
-                            children: [
-                              const Icon(Icons.security, color: AppColors.brand, size: 20),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  tr('دخول مدير المنصة (Super Admin)'),
-                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-                                  overflow: TextOverflow.ellipsis,
+                        // الشعار والعنوان
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.brandLight,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.brand.withValues(alpha: 0.2),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 4),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          _buildField(
-                            controller: phoneCtrl,
-                            label: tr('معرف المدير أو رقم الهاتف'),
-                            hint: '01000000000',
-                            icon: Icons.badge_outlined,
-                          ),
-                          const SizedBox(height: 14),
-                          _buildField(
-                            controller: otpCtrl,
-                            label: tr('كلمة المرور / الكود الخاص (admin123)'),
-                            hint: '••••••••',
-                            icon: Icons.lock_outline,
-                            obscure: true,
-                          ),
-                        ] else if (selectedRoleIndex == 1) ...[
-                          // --- مسار المورد ---
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  isRegisteringForVendor ? tr('تسجيل حساب مورد جديد') : tr('تسجيل دخول المورد الحالي'),
-                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  setState(() => isRegisteringForVendor = !isRegisteringForVendor);
-                                },
-                                child: Text(
-                                  isRegisteringForVendor ? tr('لديك حساب؟ سجل دخول') : tr('مورد جديد؟ انضم الآن'),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.brand),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          _buildField(
-                            controller: phoneCtrl,
-                            label: tr('رقم الهاتف (إجباري)'),
-                            hint: '01xxxxxxxxx',
-                            icon: Icons.phone_outlined,
-                            type: TextInputType.phone,
-                          ),
-                          const SizedBox(height: 14),
-                          if (isRegisteringForVendor) ...[
-                            _buildField(
-                              controller: nameCtrl,
-                              label: tr('الاسم ثلاثي (إجباري)'),
-                              hint: tr('أحمد محمد علي'),
-                              icon: Icons.person_outline,
+                              ],
                             ),
-                            const SizedBox(height: 14),
-                            _buildField(
-                              controller: addressCtrl,
-                              label: tr('العنوان التفصيلي ومقر العمل (إجباري)'),
-                              hint: tr('المنطقة الصناعية - العبور'),
-                              icon: Icons.location_on_outlined,
-                            ),
-                            const SizedBox(height: 14),
-                            _buildField(
-                              controller: businessActivityCtrl,
-                              label: tr('النشاط التجاري (إجباري)'),
-                              hint: tr('تجارة مواد غذائية وزيوت بالجملة'),
-                              icon: Icons.storefront_outlined,
-                            ),
-                            const SizedBox(height: 14),
-                          ],
-                          _buildField(
-                            controller: otpCtrl,
-                            label: tr('كود التأكيد / المرور (إجباري)'),
-                            hint: '123456',
-                            icon: Icons.verified_user_outlined,
-                            type: TextInputType.number,
+                            child: const Icon(Icons.storefront_rounded, size: 40, color: AppColors.brand),
                           ),
-                        ] else ...[
-                          // --- مسار العميل أو صاحب المحل ---
-                          Row(
-                            children: [
-                              const Icon(Icons.shopping_bag_outlined, color: AppColors.brand, size: 20),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  tr('تسجيل دخول العميل أو صاحب المحل'),
-                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                        ),
+                        const SizedBox(height: 16),
+                        Center(
+                          child: Text(
+                            tr('منصة وُفّرت - Waffart B2B'),
+                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.ink),
                           ),
-                          const SizedBox(height: 16),
-                          _buildField(
-                            controller: phoneCtrl,
-                            label: tr('رقم الهاتف (إجباري)'),
-                            hint: '01xxxxxxxxx',
-                            icon: Icons.phone_outlined,
-                            type: TextInputType.phone,
+                        ),
+                        Center(
+                          child: Text(
+                            tr('سوق الجملة الذكي ومنصة التجارة المتكاملة'),
+                            style: const TextStyle(fontSize: 12, color: AppColors.inkSoft, fontWeight: FontWeight.w600),
                           ),
-                          const SizedBox(height: 14),
-                          _buildField(
-                            controller: nameCtrl,
-                            label: tr('الاسم بالكامل (إجباري)'),
-                            hint: tr('محمد أحمد إبراهيم'),
-                            icon: Icons.person_outline,
-                          ),
-                          const SizedBox(height: 14),
-                          _buildField(
-                            controller: addressCtrl,
-                            label: tr('العنوان التفصيلي للاستلام (إجباري)'),
-                            hint: tr('شارع الجمهورية - الجيزة'),
-                            icon: Icons.location_on_outlined,
-                          ),
-                          const SizedBox(height: 14),
-                          _buildField(
-                            controller: shopCtrl,
-                            label: tr('اسم المحل التجاري (اختياري)'),
-                            hint: tr('سوبر ماركت الإخلاص'),
-                            icon: Icons.store_outlined,
-                          ),
-                          const SizedBox(height: 14),
-                          _buildField(
-                            controller: otpCtrl,
-                            label: tr('كود التأكيد (OTP)'),
-                            hint: '123456',
-                            icon: Icons.lock_clock_outlined,
-                            type: TextInputType.number,
-                          ),
-                        ],
+                        ),
+                        const SizedBox(height: 28),
 
+                        // 1. شريط الاختيار المستقيم المقسم بالتساوي لـ 3 أدوار
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColors.card,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.line),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.ink.withValues(alpha: 0.04),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(child: _buildRoleTab(tr('العميل / المحل'), 0, Icons.person_outline)),
+                              const SizedBox(width: 4),
+                              Expanded(child: _buildRoleTab(tr('المورد'), 1, Icons.business_outlined)),
+                              const SizedBox(width: 4),
+                              Expanded(child: _buildRoleTab(tr('المدير'), 2, Icons.admin_panel_settings_outlined)),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 24),
 
-                        // زر التأكيد / الدخول
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.brand,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            onPressed: _handleLoginSubmit,
-                            child: Text(
-                              selectedRoleIndex == 1 && isRegisteringForVendor ? tr('إرسال طلب الانضمام') : tr('دخول / تأكيد الحساب'),
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                        // 2. محتوى الحقول حسب الدور المختار
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.card,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.line),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.ink.withValues(alpha: 0.03),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (selectedRoleIndex == 2) ...[
+                                // --- مسار المدير ---
+                                Row(
+                                  children: [
+                                    const Icon(Icons.security, color: AppColors.brand, size: 20),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        tr('دخول مدير المنصة (Super Admin)'),
+                                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                _buildField(
+                                  controller: phoneCtrl,
+                                  label: tr('معرف المدير أو رقم الهاتف'),
+                                  hint: '01000000000',
+                                  icon: Icons.badge_outlined,
+                                ),
+                                const SizedBox(height: 14),
+                                _buildField(
+                                  controller: otpCtrl,
+                                  label: tr('كلمة المرور / الكود الخاص (admin123)'),
+                                  hint: '••••••••',
+                                  icon: Icons.lock_outline,
+                                  obscure: true,
+                                ),
+                              ] else if (selectedRoleIndex == 1) ...[
+                                // --- مسار المورد ---
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        isRegisteringForVendor ? tr('تسجيل حساب مورد جديد') : tr('تسجيل دخول المورد الحالي'),
+                                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        setState(() => isRegisteringForVendor = !isRegisteringForVendor);
+                                      },
+                                      child: Text(
+                                        isRegisteringForVendor ? tr('لديك حساب؟ سجل دخول') : tr('مورد جديد؟ انضم الآن'),
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.brand),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                _buildField(
+                                  controller: phoneCtrl,
+                                  label: tr('رقم الهاتف (إجباري)'),
+                                  hint: '01xxxxxxxxx',
+                                  icon: Icons.phone_outlined,
+                                  type: TextInputType.phone,
+                                ),
+                                const SizedBox(height: 14),
+                                if (isRegisteringForVendor) ...[
+                                  _buildField(
+                                    controller: nameCtrl,
+                                    label: tr('الاسم ثلاثي (إجباري)'),
+                                    hint: tr('أحمد محمد علي'),
+                                    icon: Icons.person_outline,
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _buildField(
+                                    controller: addressCtrl,
+                                    label: tr('العنوان التفصيلي ومقر العمل (إجباري)'),
+                                    hint: tr('المنطقة الصناعية - العبور'),
+                                    icon: Icons.location_on_outlined,
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _buildField(
+                                    controller: businessActivityCtrl,
+                                    label: tr('النشاط التجاري (إجباري)'),
+                                    hint: tr('تجارة مواد غذائية وزيوت بالجملة'),
+                                    icon: Icons.storefront_outlined,
+                                  ),
+                                  const SizedBox(height: 14),
+                                ],
+                                _buildField(
+                                  controller: otpCtrl,
+                                  label: tr('كود التأكيد / المرور (إجباري)'),
+                                  hint: '123456',
+                                  icon: Icons.verified_user_outlined,
+                                  type: TextInputType.number,
+                                ),
+                              ] else ...[
+                                // --- مسار العميل أو صاحب المحل ---
+                                Row(
+                                  children: [
+                                    const Icon(Icons.shopping_bag_outlined, color: AppColors.brand, size: 20),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        tr('تسجيل دخول العميل أو صاحب المحل'),
+                                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                _buildField(
+                                  controller: phoneCtrl,
+                                  label: tr('رقم الهاتف (إجباري)'),
+                                  hint: '01xxxxxxxxx',
+                                  icon: Icons.phone_outlined,
+                                  type: TextInputType.phone,
+                                ),
+                                const SizedBox(height: 14),
+                                _buildField(
+                                  controller: nameCtrl,
+                                  label: tr('الاسم بالكامل (إجباري)'),
+                                  hint: tr('محمد أحمد إبراهيم'),
+                                  icon: Icons.person_outline,
+                                ),
+                                const SizedBox(height: 14),
+                                _buildField(
+                                  controller: addressCtrl,
+                                  label: tr('العنوان التفصيلي للاستلام (إجباري)'),
+                                  hint: tr('شارع الجمهورية - الجيزة'),
+                                  icon: Icons.location_on_outlined,
+                                ),
+                                const SizedBox(height: 14),
+                                _buildField(
+                                  controller: shopCtrl,
+                                  label: tr('اسم المحل التجاري (اختياري)'),
+                                  hint: tr('سوبر ماركت الإخلاص'),
+                                  icon: Icons.store_outlined,
+                                ),
+                                const SizedBox(height: 14),
+                                _buildField(
+                                  controller: otpCtrl,
+                                  label: tr('كود التأكيد (OTP)'),
+                                  hint: '123456',
+                                  icon: Icons.lock_clock_outlined,
+                                  type: TextInputType.number,
+                                ),
+                              ],
+
+                              const SizedBox(height: 24),
+
+                              // زر التأكيد / الدخول
+                              SizedBox(
+                                width: double.infinity,
+                                height: 52,
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.brand,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  ),
+                                  onPressed: _handleLoginSubmit,
+                                  child: Text(
+                                    selectedRoleIndex == 1 && isRegisteringForVendor ? tr('إرسال طلب الانضمام') : tr('دخول / تأكيد الحساب'),
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: () => appState.toggleLocale(),
+                            icon: const Icon(Icons.language, size: 16, color: AppColors.inkSoft),
+                            label: Text(
+                              appState.isRtl ? 'English' : 'عربي',
+                              style: const TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-
-                  const SizedBox(height: 20),
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: () => appState.toggleLocale(),
-                      icon: const Icon(Icons.language, size: 16, color: AppColors.inkSoft),
-                      label: Text(
-                        appState.isRtl ? 'English' : 'عربي',
-                        style: const TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -415,7 +424,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       if (selectedRoleIndex == 2) {
         // 1. مسار المدير
-        if (otpCtrl.text.trim() == 'admin123') {
+        if (otpCtrl.text.trim() == AppConfig.adminPasscode) {
           await appState.login(UserEntity(
             id: 'super_admin_1',
             name: 'مدير المنصة',

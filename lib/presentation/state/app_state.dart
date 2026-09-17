@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 
+import '../../data/datasources/realtime_service.dart';
 import '../../domain/repositories/i_cloud_repository.dart';
 import '../../domain/entities/product_entity.dart';
 import '../../domain/entities/order_entity.dart';
@@ -34,12 +34,55 @@ class AppState extends ChangeNotifier {
   bool isCheckingOut = false;
   String currentLocale = 'ar'; // 'ar' (RTL) or 'en' (LTR)
 
+  // ─── إدارة حالة التتبع اللحظي (Realtime Tracking) ───
+  RealtimeService get _realtime => GetIt.I<RealtimeService>();
+  RealtimeStatus realtimeStatus = RealtimeStatus.connecting;
+  StreamSubscription? _realtimeStatusSub;
+
   StreamSubscription? _productsSub;
   StreamSubscription? _ordersSub;
   StreamSubscription? _vendorsSub;
   StreamSubscription? _categoriesSub;
   StreamSubscription? _notificationsSub;
   StreamSubscription? _profileSub;
+  StreamSubscription? _settingsSub;
+
+  // الحدود الدنيا لقيمة الطلب المجمع لكل مورد (الأصناف والعروض معاً)
+  final Map<String, double> vendorMinOrderValues = {};
+
+  double get minOrderValuePerVendor => 500.0;
+
+  double vendorMinOrderValue(String vendorId) => getVendorMinOrderValue(vendorId);
+
+  double getVendorMinOrderValue(String vendorId) {
+    return vendorMinOrderValues[vendorId] ?? 0.0;
+  }
+
+  Future<void> setVendorMinOrderValue(String vendorId, double value) async {
+    vendorMinOrderValues[vendorId] = value;
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('min_order_vendor_$vendorId', value);
+
+    try {
+      await _cloud.saveSettings('vendor_min_order_$vendorId', {
+        'vendor_id': vendorId,
+        'min_order_value': value,
+      });
+    } catch (e) {
+      debugPrint('⚠️ [Settings] تعذر حفظ حد المورد في السحابة: $e');
+    }
+  }
+
+  Future<void> loadVendorSettings(String vendorId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getDouble('min_order_vendor_$vendorId');
+    if (cached != null && cached > 0) {
+      vendorMinOrderValues[vendorId] = cached;
+      notifyListeners();
+    }
+  }
 
   // ─── التوافق مع الملفات والبروفايل ───
   String _retailerEmail = '';
@@ -62,8 +105,35 @@ class AppState extends ChangeNotifier {
   String adminAddress = '';
 
   AppState() {
+    _initRealtimeMonitor();
     // We delay this to ensure initDI and Supabase are ready
     Future.microtask(() => _loadSession());
+  }
+
+  void _initRealtimeMonitor() {
+    try {
+      realtimeStatus = _realtime.currentStatus;
+      _realtimeStatusSub?.cancel();
+      _realtimeStatusSub = _realtime.statusStream.listen((status) {
+        realtimeStatus = status;
+        notifyListeners();
+        if (status == RealtimeStatus.connected) {
+          _refreshCartPrices();
+        }
+      });
+    } catch (e) {
+      debugPrint('⚠️ [AppState] خطأ في تهيئة مراقب الـ Realtime: $e');
+    }
+  }
+
+  void reconnectRealtime() {
+    _realtime.reconnect();
+    if (currentUser != null) {
+      _initCloudSync();
+    } else {
+      _initPublicSync();
+    }
+    notifyListeners();
   }
 
   bool get isRtl => currentLocale == 'ar';
@@ -91,6 +161,9 @@ class AppState extends ChangeNotifier {
         businessActivity: prefs.getString('businessActivity'),
         status: prefs.getString('userStatus') ?? 'active',
       );
+      if (currentUser!.role == 'vendor') {
+        await loadVendorSettings(currentUser!.id);
+      }
       _initCloudSync();
     } else {
       _initPublicSync();
@@ -172,6 +245,21 @@ class AppState extends ChangeNotifier {
   void _initPublicSync() {
     _productsSub?.cancel();
     _categoriesSub?.cancel();
+    _settingsSub?.cancel();
+
+    _settingsSub = _cloud.getAllSettingsStream().listen((list) {
+      for (final row in list) {
+        final id = row['id']?.toString() ?? '';
+        if (id.startsWith('vendor_min_order_')) {
+          final vId = id.replaceFirst('vendor_min_order_', '');
+          final data = row['data'] as Map?;
+          final val = (data?['min_order_value'] as num?)?.toDouble() ?? 0.0;
+          vendorMinOrderValues[vId] = val;
+        }
+      }
+      _refreshCartPrices();
+      notifyListeners();
+    }, onError: (e) => debugPrint('❌ Error Settings: $e'));
 
     _categoriesSub = _cloud.getCategoriesStream().listen((list) {
       categories = list;
@@ -192,8 +280,23 @@ class AppState extends ChangeNotifier {
     _categoriesSub?.cancel();
     _notificationsSub?.cancel();
     _profileSub?.cancel();
+    _settingsSub?.cancel();
 
     if (currentUser == null) return;
+
+    _settingsSub = _cloud.getAllSettingsStream().listen((list) {
+      for (final row in list) {
+        final id = row['id']?.toString() ?? '';
+        if (id.startsWith('vendor_min_order_')) {
+          final vId = id.replaceFirst('vendor_min_order_', '');
+          final data = row['data'] as Map?;
+          final val = (data?['min_order_value'] as num?)?.toDouble() ?? 0.0;
+          vendorMinOrderValues[vId] = val;
+        }
+      }
+      _refreshCartPrices();
+      notifyListeners();
+    }, onError: (e) => debugPrint('❌ Error Settings: $e'));
 
     _categoriesSub = _cloud.getCategoriesStream().listen((list) {
       categories = list;
@@ -223,7 +326,30 @@ class AppState extends ChangeNotifier {
         debugPrint('❌ خطأ في جلب منتجات المورد: $error');
       });
       _ordersSub = _cloud.getVendorOrdersStream(currentUser!.id).listen((list) {
-        orders = list;
+        final merged = list.map((remote) {
+          if (remote.items.isEmpty) {
+            final local = orders.where((o) => o.id == remote.id).firstOrNull;
+            if (local != null && local.items.isNotEmpty) {
+              return OrderEntity(
+                id: remote.id,
+                parentOrderId: remote.parentOrderId,
+                vendorId: remote.vendorId,
+                clientId: remote.clientId,
+                clientName: remote.clientName,
+                clientPhone: remote.clientPhone,
+                clientAddress: remote.clientAddress,
+                items: local.items,
+                total: remote.total,
+                savings: remote.savings,
+                createdAt: remote.createdAt,
+                status: remote.status,
+                paymentMethod: remote.paymentMethod,
+              );
+            }
+          }
+          return remote;
+        }).toList();
+        orders = merged;
         notifyListeners();
       }, onError: (error) {
         debugPrint('❌ خطأ في جلب طلبات المورد: $error');
@@ -270,7 +396,30 @@ class AppState extends ChangeNotifier {
         debugPrint('❌ خطأ في جلب منتجات العميل: $error');
       });
       _ordersSub = _cloud.getClientOrdersStream(currentUser!.id).listen((list) {
-        orders = list;
+        final merged = list.map((remote) {
+          if (remote.items.isEmpty) {
+            final local = orders.where((o) => o.id == remote.id).firstOrNull;
+            if (local != null && local.items.isNotEmpty) {
+              return OrderEntity(
+                id: remote.id,
+                parentOrderId: remote.parentOrderId,
+                vendorId: remote.vendorId,
+                clientId: remote.clientId,
+                clientName: remote.clientName,
+                clientPhone: remote.clientPhone,
+                clientAddress: remote.clientAddress,
+                items: local.items,
+                total: remote.total,
+                savings: remote.savings,
+                createdAt: remote.createdAt,
+                status: remote.status,
+                paymentMethod: remote.paymentMethod,
+              );
+            }
+          }
+          return remote;
+        }).toList();
+        orders = merged;
         notifyListeners();
       }, onError: (error) {
         debugPrint('❌ خطأ في جلب طلبات العميل: $error');
@@ -352,25 +501,56 @@ class AppState extends ChangeNotifier {
     return items.fold(0.0, (sum, item) => sum + (item.unitPrice * item.qty));
   }
 
-  final double minOrderValuePerVendor = 500.0;
+  // التحقق من استيفاء شرط الحد الأدنى لقيمة الشراء من الصنف نفسه إن وُجد
+  bool isCartItemValid(CartItem item) {
+    if (item.product.minOrderValue > 0) {
+      final totalItemVal = item.unitPrice * item.qty;
+      return totalItemVal >= item.product.minOrderValue;
+    }
+    return true;
+  }
+
+  // التحقق من استيفاء شرط الحد الأدنى لطلب المتجر المجمع الخاص بالمورد
+  bool isVendorCartValid(String vendorId) {
+    final subtotal = vendorSubtotal(vendorId);
+    final minVal = getVendorMinOrderValue(vendorId);
+    return subtotal >= minVal;
+  }
 
   bool get isCartValidForCheckout {
     if (cart.isEmpty) return false;
     for (var vendorId in cartGroupedByVendor.keys) {
-      if (vendorSubtotal(vendorId) < minOrderValuePerVendor) return false;
+      if (!isVendorCartValid(vendorId)) return false;
+    }
+    for (var item in cart) {
+      if (!isCartItemValid(item)) return false;
     }
     return true;
   }
 
   void addToCart(ProductEntity product) {
-    final existing = cart.where((c) => c.product.id == product.id).firstOrNull;
-    if (existing != null) {
-      existing.qty += product.minOrderQty;
-      existing.unitPrice = existing.product.priceForQty(existing.qty);
-    } else {
-      final qty = product.minOrderQty;
-      cart.add(CartItem(product: product, qty: qty, unitPrice: product.priceForQty(qty)));
+    final p = products.firstWhere((pr) => pr.id == product.id, orElse: () => product);
+    final existing = cart.where((c) => c.product.id == p.id).firstOrNull;
+    final currentQty = existing?.qty ?? 0;
+
+    // التحقق من عدم تجاوز الكمية المتاحة في حال كان العرض نشطاً
+    if (p.isOfferActive && p.offerRemainingQty > 0) {
+      if (currentQty + p.minOrderQty > p.offerRemainingQty) {
+        return; // تم الوصول لأقصى كمية متاحة بالعرض
+      }
     }
+
+    if (existing != null) {
+      existing.qty += p.minOrderQty;
+    } else {
+      final qty = p.minOrderQty;
+      cart.add(CartItem(
+        product: p,
+        qty: qty,
+        unitPrice: p.priceForQty(qty, vendorSubtotal(p.vendorId)),
+      ));
+    }
+    _refreshCartPrices();
     notifyListeners();
   }
 
@@ -379,22 +559,30 @@ class AppState extends ChangeNotifier {
       cart.removeWhere((c) => c.product.id == productId);
     } else {
       final item = cart.firstWhere((c) => c.product.id == productId);
-      if (newQty >= item.product.minOrderQty) {
+      final p = products.firstWhere((pr) => pr.id == productId, orElse: () => item.product);
+      if (newQty >= p.minOrderQty) {
+        // حماية المخزون المتاح للعرض
+        if (p.isOfferActive && p.offerRemainingQty > 0) {
+          if (newQty > p.offerRemainingQty) {
+            newQty = p.offerRemainingQty;
+          }
+        }
         item.qty = newQty;
-        item.unitPrice = item.product.priceForQty(newQty);
       }
     }
+    _refreshCartPrices();
     notifyListeners();
   }
 
   void removeFromCart(String productId) {
     cart.removeWhere((c) => c.product.id == productId);
+    _refreshCartPrices();
     notifyListeners();
   }
 
-  // Add the missing deleteProfile method for vendor deletion
+  // Safe profile/vendor deletion routed via repository
   Future<void> deleteProfile(String vendorId) async {
-    await Supabase.instance.client.from('profiles').delete().eq('id', vendorId);
+    await deleteVendor(vendorId);
   }
 
   Future<bool> checkout() async {
@@ -463,7 +651,13 @@ class AppState extends ChangeNotifier {
         return false;
       }
 
+      // إضافة الطلبات الجديدة فوراً للواجهة ببيانات أصنافها الكاملة دون تأخير
+      for (final no in newOrders) {
+        orders.removeWhere((o) => o.id == no.id);
+        orders.insert(0, no);
+      }
       cart.clear();
+      notifyListeners();
       return true;
     } catch (e) {
       debugPrint("Checkout Error: $e");
@@ -490,8 +684,9 @@ class AppState extends ChangeNotifier {
     if (cart.isEmpty) return;
     for (var item in cart) {
       final p = products.firstWhere((pr) => pr.id == item.product.id, orElse: () => item.product);
-      // تحديث السعر للوحدة بناءً على الحالة الحالية للمنتج (عرض أو سعر متدرج)
-      item.unitPrice = p.priceForQty(item.qty);
+      final vSub = vendorSubtotal(p.vendorId);
+      // تحديث السعر للوحدة بناءً على الحالة الحالية للمنتج والكمية وإجمالي طلب المورد (للتأهل للعرض)
+      item.unitPrice = p.priceForQty(item.qty, vSub);
     }
   }
 
@@ -541,6 +736,8 @@ class AppState extends ChangeNotifier {
     int totalQty, {
     DateTime? startDate,
     DateTime? endDate,
+    int offerMinQty = 1,
+    double offerMinOrderValue = 0.0,
   }) async {
     final p = products.firstWhere((pr) => pr.id == productId);
     final updated = p.copyWith(
@@ -550,6 +747,8 @@ class AppState extends ChangeNotifier {
       offerRemainingQty: totalQty,
       offerStartDate: startDate,
       offerEndDate: endDate,
+      offerMinQty: offerMinQty,
+      offerMinOrderValue: offerMinOrderValue,
     );
     await addProduct(updated);
   }
