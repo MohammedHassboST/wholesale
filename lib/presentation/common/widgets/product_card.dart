@@ -3,6 +3,7 @@ import 'dart:io';
 import '../../../domain/entities/product_entity.dart';
 import '../../state/app_state.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/l10n/app_strings.dart';
 
 class ProductCard extends StatelessWidget {
   final ProductEntity product;
@@ -20,14 +21,14 @@ class ProductCard extends StatelessWidget {
 
         double progressVal = p.offerRemainingPercentage;
         Color progressColor = AppColors.brand;
-        String remainingText = 'متبقي ${p.offerRemainingQty} من ${p.offerTotalQty}';
+        String remainingText = trArgs('متبقي {r} من {t}', {'r': p.offerRemainingQty, 't': p.offerTotalQty});
 
         if (progressVal <= 0.10) {
           progressColor = AppColors.danger;
-          remainingText = '⚠️ متبقي 10% فقط (${p.offerRemainingQty} ${p.unit})!';
+          remainingText = trArgs('⚠️ متبقي 10% فقط ({r} {u})!', {'r': p.offerRemainingQty, 'u': unitLabel(p.unit)});
         } else if (progressVal <= 0.30) {
           progressColor = AppColors.amber;
-          remainingText = '🔥 متبقي ${p.offerRemainingQty} ${p.unit}';
+          remainingText = trArgs('🔥 متبقي {r} {u}', {'r': p.offerRemainingQty, 'u': unitLabel(p.unit)});
         }
 
         return Container(
@@ -71,7 +72,7 @@ class ProductCard extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: AppColors.danger, borderRadius: BorderRadius.circular(6)),
-                        child: const Text('عرض خاص 🔥', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                        child: Text(tr('عرض خاص 🔥'), style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
                       ),
                     ),
                 ],
@@ -95,7 +96,7 @@ class ProductCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
-                          Text('المورد: ${p.vendorId}', style: const TextStyle(fontSize: 10, color: AppColors.brandDeep, fontWeight: FontWeight.bold)),
+                          Text(trArgs('المورد: {id}', {'id': p.vendorId}), style: const TextStyle(fontSize: 10, color: AppColors.brandDeep, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           Row(
                             children: [
@@ -116,7 +117,12 @@ class ProductCard extends StatelessWidget {
                               ],
                             ],
                           ),
-                          Text('الوحدة: ${p.unit} (الحد الأدنى: ${p.minOrderQty})', style: const TextStyle(fontSize: 9, color: AppColors.inkSoft)),
+                          Text(trArgs('الوحدة: {u} (الحد الأدنى: {m})', {'u': unitLabel(p.unit), 'm': p.minOrderQty}), style: const TextStyle(fontSize: 9, color: AppColors.inkSoft)),
+                          if (!isOfferStillValid && p.lowestTierPrice != null && p.lowestTierPrice! < p.price)
+                            Text(
+                              trArgs('💰 سعر متدرج حتى {price} للكميات', {'price': currency(p.lowestTierPrice!)}),
+                              style: const TextStyle(fontSize: 9, color: AppColors.brandDeep, fontWeight: FontWeight.bold),
+                            ),
 
                           // شريط التقدم للكمية المتبقية للعرض
                           if (isOfferStillValid) ...[
@@ -137,8 +143,8 @@ class ProductCard extends StatelessWidget {
                             ),
                           ] else if (p.isOffer && p.offerRemainingQty <= 0) ...[
                             const SizedBox(height: 6),
-                            const Text(
-                              'انتهى العرض (متاح للشراء بالسعر الأصلي)',
+                            Text(
+                              tr('انتهى العرض (متاح للشراء بالسعر الأصلي)'),
                               style: TextStyle(fontSize: 9, color: AppColors.inkSoft, fontWeight: FontWeight.w600),
                             ),
                           ],
@@ -158,7 +164,7 @@ class ProductCard extends StatelessWidget {
                           ),
                           onPressed: () => appState.addToCart(p),
                           child: Text(
-                            cartQty > 0 ? 'في السلة ($cartQty)' : 'أضف للسلة',
+                            cartQty > 0 ? trArgs('في السلة ({q})', {'q': cartQty}) : tr('أضف للسلة'),
                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                           ),
                         ),

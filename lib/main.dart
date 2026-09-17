@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/di/injection_container.dart';
+import 'core/notifications/notification_watcher.dart';
+import 'data/datasources/notification_service.dart';
 import 'presentation/state/app_state.dart';
 import 'presentation/auth/login_screen.dart';
 import 'presentation/screens/admin/super_admin_dashboard.dart';
@@ -25,6 +27,15 @@ void main() async {
   }
 
   await initDI();
+
+  // Local push for realtime cloud notifications (client / vendor / admin).
+  try {
+    await NotificationService().init();
+    notificationWatcher.attach();
+  } catch (e) {
+    debugPrint('Notifications init notice: $e');
+  }
+
   runApp(const Waffart());
 }
 

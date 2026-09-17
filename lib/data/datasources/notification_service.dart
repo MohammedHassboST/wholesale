@@ -12,10 +12,15 @@ class NotificationService {
 
   Future<void> init() async {
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidSettings);
+    const darwinSettings = DarwinInitializationSettings();
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: darwinSettings,
+      macOS: darwinSettings,
+    );
     await _notifications.initialize(settings: initSettings);
 
-    // ✅ طلب الإذن لـ Android 13+
+    // ✅ طلب الإذن لـ Android 13+ و iOS
     await requestPermissions();
   }
 
@@ -23,6 +28,12 @@ class NotificationService {
     await _notifications
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
+    await _notifications
+        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
+    await _notifications
+        .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
   Future<void> show({
@@ -41,10 +52,14 @@ class NotificationService {
       playSound: true,
       icon: '@mipmap/ic_launcher',
     );
-    const details = NotificationDetails(android: androidDetails);
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(),
+      macOS: DarwinNotificationDetails(),
+    );
     
     await _notifications.show(
-      id: DateTime.now().millisecond,
+      id: DateTime.now().millisecondsSinceEpoch.remainder(1 << 31), // unique-ish 32-bit id (millisecond 0-999 collides and overwrites)
       title: title,
       body: body,
       notificationDetails: details,

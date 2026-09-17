@@ -16,6 +16,7 @@ class ProductModel extends ProductEntity {
     super.offerStartDate,
     super.offerEndDate,
     super.imagePath,
+    super.priceTiers,
   });
 
   factory ProductModel.fromMap(Map<String, dynamic> map, String docId) {
@@ -37,7 +38,11 @@ class ProductModel extends ProductEntity {
       offerEndDate: map['offer_end_date'] != null
           ? DateTime.tryParse(map['offer_end_date'].toString())
           : (map['offerEndDate'] != null ? DateTime.tryParse(map['offerEndDate'].toString()) : null),
-      imagePath: (map['image_url'] ?? map['imagePath'])?.toString(),
+      imagePath: (map['image_url'] ?? map['image_path'] ?? map['imagePath'])?.toString(),
+      priceTiers: ((map['price_tiers'] ?? map['priceTiers']) as List?)
+              ?.map((e) => PriceTier.fromMap(Map<String, dynamic>.from(e as Map)))
+              .toList() ??
+          [],
     );
   }
 
@@ -57,9 +62,11 @@ class ProductModel extends ProductEntity {
       offerStartDate: p.offerStartDate,
       offerEndDate: p.offerEndDate,
       imagePath: p.imagePath,
+      priceTiers: p.priceTiers,
     );
   }
 
+  @override
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -76,6 +83,7 @@ class ProductModel extends ProductEntity {
       'offer_start_date': offerStartDate?.toIso8601String(),
       'offer_end_date': offerEndDate?.toIso8601String(),
       'image_url': imagePath,
+      'price_tiers': priceTiers.map((t) => t.toMap()).toList(),
     };
   }
 }

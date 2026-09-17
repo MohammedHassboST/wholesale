@@ -5,6 +5,7 @@ import 'notifications_page.dart';
 import 'profile_page.dart';
 import '../../state/app_state.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/l10n/app_strings.dart';
 
 class RetailerShell extends StatefulWidget {
   const RetailerShell({super.key});
@@ -41,8 +42,8 @@ class _RetailerShellState extends State<RetailerShell> {
             selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             unselectedLabelStyle: const TextStyle(fontSize: 11),
             items: [
-              const BottomNavigationBarItem(icon: Icon(Icons.storefront_outlined), activeIcon: Icon(Icons.storefront), label: 'سوق الجملة'),
-              const BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long), label: 'طلباتي'),
+              BottomNavigationBarItem(icon: const Icon(Icons.storefront_outlined), activeIcon: const Icon(Icons.storefront), label: tr('سوق الجملة')),
+              BottomNavigationBarItem(icon: const Icon(Icons.receipt_long_outlined), activeIcon: const Icon(Icons.receipt_long), label: tr('طلباتي')),
               BottomNavigationBarItem(
                 icon: Stack(
                   children: [
@@ -63,9 +64,9 @@ class _RetailerShellState extends State<RetailerShell> {
                   ],
                 ),
                 activeIcon: const Icon(Icons.notifications),
-                label: 'الإشعارات',
+                label: tr('الإشعارات'),
               ),
-              const BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'حسابي'),
+              BottomNavigationBarItem(icon: const Icon(Icons.person_outline), activeIcon: const Icon(Icons.person), label: tr('حسابي')),
             ],
           ),
         );

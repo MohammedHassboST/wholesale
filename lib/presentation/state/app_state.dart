@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 
 import '../../domain/repositories/i_cloud_repository.dart';
@@ -8,11 +9,12 @@ import '../../domain/entities/product_entity.dart';
 import '../../domain/entities/order_entity.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/entities/notification_entity.dart';
+import '../../core/l10n/app_strings.dart';
 
 class CartItem {
   final ProductEntity product;
   int qty;
-  final double unitPrice;
+  double unitPrice; 
 
   CartItem({required this.product, required this.qty, required this.unitPrice});
 }
@@ -37,6 +39,7 @@ class AppState extends ChangeNotifier {
   StreamSubscription? _vendorsSub;
   StreamSubscription? _categoriesSub;
   StreamSubscription? _notificationsSub;
+  StreamSubscription? _profileSub;
 
   // ─── التوافق مع الملفات والبروفايل ───
   String _retailerEmail = '';
@@ -67,11 +70,15 @@ class AppState extends ChangeNotifier {
 
   void toggleLocale() {
     currentLocale = currentLocale == 'ar' ? 'en' : 'ar';
+    AppLocale.code = currentLocale;
+    SharedPreferences.getInstance().then((p) => p.setString('locale', currentLocale));
     notifyListeners();
   }
 
   Future<void> _loadSession() async {
     final prefs = await SharedPreferences.getInstance();
+    currentLocale = prefs.getString('locale') ?? 'ar';
+    AppLocale.code = currentLocale;
     final id = prefs.getString('userId');
     if (id != null) {
       currentUser = UserEntity(
@@ -91,18 +98,57 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> login(UserEntity user) async {
-    currentUser = user;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('userId', user.id);
-    await prefs.setString('userName', user.name);
-    await prefs.setString('userPhone', user.phone);
-    await prefs.setString('userRole', user.role);
-    await prefs.setString('userStatus', user.status);
-    if (user.shopName != null) await prefs.setString('shopName', user.shopName!);
-    if (user.address != null) await prefs.setString('userAddress', user.address!);
-    if (user.businessActivity != null) await prefs.setString('businessActivity', user.businessActivity!);
+    // Merge with the stored profile so login never clobbers server-side state
+    // (e.g. a vendor's 'pending' status must not be overwritten with 'active').
+    UserEntity effective = user;
+    bool isFirstRegistration = true;
+    try {
+      final existing = await _cloud.getUserByPhone(user.phone);
+      if (existing != null) {
+        isFirstRegistration = false;
+        effective = UserEntity(
+          id: existing.id.isNotEmpty ? existing.id : user.id,
+          name: user.name.isNotEmpty ? user.name : existing.name,
+          phone: user.phone,
+          role: existing.role.isNotEmpty ? existing.role : user.role,
+          shopName: user.shopName ?? existing.shopName,
+          address: user.address ?? existing.address,
+          businessActivity: user.businessActivity ?? existing.businessActivity,
+          status: existing.status,
+          createdAt: existing.createdAt,
+        );
+      }
+    } catch (_) {
+      // Offline / table missing → fall back to the supplied user.
+    }
 
-    await _cloud.saveUser(user);
+    currentUser = effective;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userId', effective.id);
+    await prefs.setString('userName', effective.name);
+    await prefs.setString('userPhone', effective.phone);
+    await prefs.setString('userRole', effective.role);
+    await prefs.setString('userStatus', effective.status);
+    if (effective.shopName != null) await prefs.setString('shopName', effective.shopName!);
+    if (effective.address != null) await prefs.setString('userAddress', effective.address!);
+    if (effective.businessActivity != null) await prefs.setString('businessActivity', effective.businessActivity!);
+
+    await _cloud.saveUser(effective);
+
+    // Brand-new pending vendor → alert the platform admin in real time.
+    if (isFirstRegistration && effective.role == 'vendor' && effective.status == 'pending') {
+      try {
+        await _cloud.sendNotification(NotificationEntity(
+          id: '',
+          title: '🆕 طلب انضمام مورد جديد',
+          body: '${effective.name} (${effective.phone}) — ${effective.businessActivity ?? effective.shopName ?? 'نشاط عام'} بانتظار المراجعة والاعتماد.',
+          createdAt: DateTime.now(),
+          targetPhone: 'super_admin_1',
+          payload: 'vendor:${effective.id}',
+        ));
+      } catch (_) {}
+    }
+
     _initCloudSync();
     notifyListeners();
   }
@@ -115,6 +161,7 @@ class AppState extends ChangeNotifier {
     _vendorsSub?.cancel();
     _categoriesSub?.cancel();
     _notificationsSub?.cancel();
+    _profileSub?.cancel();
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
@@ -133,6 +180,7 @@ class AppState extends ChangeNotifier {
 
     _productsSub = _cloud.getProductsStream().listen((list) {
       products = list;
+      _refreshCartPrices(); // تحديث أسعار السلة بناءً على أحدث البيانات
       notifyListeners();
     });
   }
@@ -143,62 +191,89 @@ class AppState extends ChangeNotifier {
     _vendorsSub?.cancel();
     _categoriesSub?.cancel();
     _notificationsSub?.cancel();
+    _profileSub?.cancel();
 
     if (currentUser == null) return;
 
     _categoriesSub = _cloud.getCategoriesStream().listen((list) {
       categories = list;
       notifyListeners();
-    }, onError: (e) => print('❌ Error Categories: $e'));
+    }, onError: (e) => debugPrint('❌ Error Categories: $e'));
 
     _notificationsSub = _cloud.getNotificationsStream().listen((list) {
-      notifications = list;
+      // Global notifications (no target) + ones targeted at me by phone or id.
+      notifications = list.where((n) {
+        final t = n.targetPhone;
+        if (t == null || t.isEmpty) return true;
+        return t == currentUser?.phone || t == currentUser?.id;
+      }).toList();
       notifyListeners();
-    }, onError: (e) => print('❌ Error Notifications: $e'));
+    }, onError: (e) => debugPrint('❌ Error Notifications: $e'));
 
     // ==========================================
     // منطق المورد (Vendor)
     // ==========================================
     if (currentUser!.role == 'vendor') {
-      print('👤 تسجيل دخول كمورد. الـ ID: ${currentUser!.id}');
+      debugPrint('👤 تسجيل دخول كمورد. الـ ID: ${currentUser!.id}');
       _productsSub = _cloud.getVendorProductsStream(currentUser!.id).listen((list) {
-        print('✅ تم تحديث واجهة المورد. عدد المنتجات: ${list.length}');
+        debugPrint('✅ تم تحديث واجهة المورد. عدد المنتجات: ${list.length}');
         products = list;
         notifyListeners();
       }, onError: (error) {
-        print('❌ خطأ في جلب منتجات المورد: $error');
+        debugPrint('❌ خطأ في جلب منتجات المورد: $error');
       });
       _ordersSub = _cloud.getVendorOrdersStream(currentUser!.id).listen((list) {
         orders = list;
         notifyListeners();
       }, onError: (error) {
-        print('❌ خطأ في جلب طلبات المورد: $error');
+        debugPrint('❌ خطأ في جلب طلبات المورد: $error');
       });
+      // Live profile sync: admin approval / rejection / suspension
+      // reflects instantly without re-login.
+      _profileSub = _cloud.getMyProfileStream(currentUser!.id).listen((remote) {
+        if (remote == null || currentUser == null) return;
+        if (remote.status != currentUser!.status) {
+          currentUser = UserEntity(
+            id: currentUser!.id,
+            name: currentUser!.name,
+            phone: currentUser!.phone,
+            role: currentUser!.role,
+            shopName: remote.shopName ?? currentUser!.shopName,
+            address: remote.address ?? currentUser!.address,
+            businessActivity: remote.businessActivity ?? currentUser!.businessActivity,
+            status: remote.status,
+            createdAt: currentUser!.createdAt,
+          );
+          SharedPreferences.getInstance().then((p) => p.setString('userStatus', remote.status));
+          notifyListeners();
+        }
+      }, onError: (e) => debugPrint('❌ Error ProfileSync: $e'));
     }
     // ==========================================
     // منطق العميل (Customer)
     // ==========================================
     else if (currentUser!.role == 'customer') {
-      print('👤 تسجيل دخول كعميل. جلب جميع المنتجات...');
+      debugPrint('👤 تسجيل دخول كعميل. جلب جميع المنتجات...');
 
       _productsSub = _cloud.getProductsStream().listen((list) {
-        print('✅ تم تحديث واجهة العميل. إجمالي المنتجات: ${list.length}');
+        debugPrint('✅ تم تحديث واجهة العميل. إجمالي المنتجات: ${list.length}');
 
-        final allOffers = list.where((p) => p.isOffer == true).toList();
-        final allProducts = list.where((p) => p.isOffer == false).toList();
+        // Keep offers inside `products` so the store grid shows them
+        // (ProductCard already renders offer pricing/progress); `offers`
+        // stays as the offers-only subset for offer-specific UI.
+        products = list;
+        offers = list.where((p) => p.isOffer == true).toList();
 
-        products = allProducts;
-        offers = allOffers;
-
+        _refreshCartPrices(); // مزامنة أسعار السلة
         notifyListeners();
       }, onError: (error) {
-        print('❌ خطأ في جلب منتجات العميل: $error');
+        debugPrint('❌ خطأ في جلب منتجات العميل: $error');
       });
       _ordersSub = _cloud.getClientOrdersStream(currentUser!.id).listen((list) {
         orders = list;
         notifyListeners();
       }, onError: (error) {
-        print('❌ خطأ في جلب طلبات العميل: $error');
+        debugPrint('❌ خطأ في جلب طلبات العميل: $error');
       });
     }
     // ==========================================
@@ -208,15 +283,15 @@ class AppState extends ChangeNotifier {
       _productsSub = _cloud.getProductsStream().listen((list) {
         products = list;
         notifyListeners();
-      }, onError: (e) => print('❌ Error Admin Products: $e'));
+      }, onError: (e) => debugPrint('❌ Error Admin Products: $e'));
       _ordersSub = _cloud.getOrdersStream().listen((list) {
         orders = list;
         notifyListeners();
-      }, onError: (e) => print('❌ Error Admin Orders: $e'));
+      }, onError: (e) => debugPrint('❌ Error Admin Orders: $e'));
       _vendorsSub = _cloud.getVendorsStream().listen((list) {
         vendors = list;
         notifyListeners();
-      }, onError: (e) => print('❌ Error Admin Vendors: $e'));
+      }, onError: (e) => debugPrint('❌ Error Admin Vendors: $e'));
     }
   }
 
@@ -288,12 +363,13 @@ class AppState extends ChangeNotifier {
   }
 
   void addToCart(ProductEntity product) {
-    final effectivePrice = product.currentPrice;
     final existing = cart.where((c) => c.product.id == product.id).firstOrNull;
     if (existing != null) {
       existing.qty += product.minOrderQty;
+      existing.unitPrice = existing.product.priceForQty(existing.qty);
     } else {
-      cart.add(CartItem(product: product, qty: product.minOrderQty, unitPrice: effectivePrice));
+      final qty = product.minOrderQty;
+      cart.add(CartItem(product: product, qty: qty, unitPrice: product.priceForQty(qty)));
     }
     notifyListeners();
   }
@@ -305,6 +381,7 @@ class AppState extends ChangeNotifier {
       final item = cart.firstWhere((c) => c.product.id == productId);
       if (newQty >= item.product.minOrderQty) {
         item.qty = newQty;
+        item.unitPrice = item.product.priceForQty(newQty);
       }
     }
     notifyListeners();
@@ -313,6 +390,11 @@ class AppState extends ChangeNotifier {
   void removeFromCart(String productId) {
     cart.removeWhere((c) => c.product.id == productId);
     notifyListeners();
+  }
+
+  // Add the missing deleteProfile method for vendor deletion
+  Future<void> deleteProfile(String vendorId) async {
+    await Supabase.instance.client.from('profiles').delete().eq('id', vendorId);
   }
 
   Future<bool> checkout() async {
@@ -345,21 +427,8 @@ class AppState extends ChangeNotifier {
             unitPrice: item.unitPrice,
           ));
 
-          // فحص اقتراب نفاذ العرض عند 10%
-          if (item.product.isOffer && item.product.offerTotalQty > 0) {
-            int remaining = item.product.offerRemainingQty - item.qty;
-            if (remaining < 0) remaining = 0;
-            double pct = remaining / item.product.offerTotalQty;
-            if (pct <= 0.10 && remaining > 0) {
-              await _cloud.sendNotification(NotificationEntity(
-                id: 'notif_low_${DateTime.now().millisecondsSinceEpoch}',
-                title: '⚠️ تنبيه: العرض أوشك على النفاذ!',
-                body: 'العرض على (${item.product.name}) لم يتبقَ منه سوى 10% فقط ($remaining ${item.product.unit})!',
-                createdAt: now,
-                payload: 'offer:${item.product.id}',
-              ));
-            }
-          }
+          // Low-stock alerts are emitted server-side by the atomic checkout
+          // RPC (single source of truth) — no client-side guessing here.
         }
 
         final subOrderId = 'ORD-${vendorId.length >= 4 ? vendorId.substring(vendorId.length - 4) : vendorId}-${now.millisecondsSinceEpoch.toString().substring(8)}';
@@ -379,20 +448,21 @@ class AppState extends ChangeNotifier {
           status: 'قيد المراجعة',
           paymentMethod: 'COD',
         ));
-
-        // إشعار فوري للمورد
-        await _cloud.sendNotification(NotificationEntity(
-          id: 'notif_ven_${now.millisecondsSinceEpoch}_$vendorId',
-          title: '📦 طلب فرعي جديد (كاش عند الاستلام)',
-          body: 'وصلك طلب جديد من العميل (${currentUser!.name}) بإجمالي ${vTotal.toStringAsFixed(0)} ج.م',
-          createdAt: now,
-          targetPhone: vendorId,
-          payload: 'order:$subOrderId',
-        ));
       }
 
-      // إرسال ذري يمنع التضارب والأوفرسيلنج
-      await _cloud.placeOrdersWithAtomicStockCheck(newOrders);
+      // حفظ ذري واحد عبر RPC: يتحقق من المخزون ويخصمه ويسجّل الطلبات
+      // ويولّد إشعارات المورد + تنبيهات قرب النفاذ — كل ذلك server-side
+      // في ترانزاكشن واحدة (مستحيل يحصل overselling).
+      final placed = await _cloud.placeOrdersWithAtomicStockCheck(newOrders);
+      if (!placed) {
+        // إعادة جلب المنتجات لتحديث الحالة اللحظية (تحديث الكميات المتاحة)
+        _cloud.getProductsStream().first.then((list) {
+          products = list;
+          notifyListeners();
+        });
+        return false;
+      }
+
       cart.clear();
       return true;
     } catch (e) {
@@ -416,9 +486,19 @@ class AppState extends ChangeNotifier {
     return products.where((p) => p.category == cat).toList();
   }
 
+  void _refreshCartPrices() {
+    if (cart.isEmpty) return;
+    for (var item in cart) {
+      final p = products.firstWhere((pr) => pr.id == item.product.id, orElse: () => item.product);
+      // تحديث السعر للوحدة بناءً على الحالة الحالية للمنتج (عرض أو سعر متدرج)
+      item.unitPrice = p.priceForQty(item.qty);
+    }
+  }
+
   // ─── إدارة الأصناف والعروض ───
   Future<void> addProduct(ProductEntity product) async {
-    await _cloud.addProduct(product);
+    if (currentUser == null) return;
+    await _cloud.addProduct(currentUser!.id, product);
 
     final now = DateTime.now();
     if (product.isOffer) {
@@ -440,14 +520,19 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteProduct(String id) async => await _cloud.deleteProduct(id);
+  Future<void> deleteProduct(String id) async {
+    if (currentUser == null) return;
+    await _cloud.deleteProduct(currentUser!.id, id);
+  }
 
   void updateProduct(ProductEntity updatedProduct) {
-    _cloud.addProduct(updatedProduct);
+    if (currentUser == null) return;
+    _cloud.updateProduct(currentUser!.id, updatedProduct.id, updatedProduct.toMap());
   }
 
   void updateProductStock(String productId, int newStock) {
-    _cloud.updateProductStock(productId, newStock);
+    if (currentUser == null) return;
+    _cloud.updateProduct(currentUser!.id, productId, {'offer_remaining_qty': newStock});
   }
 
   void createOffer(
@@ -506,23 +591,23 @@ class AppState extends ChangeNotifier {
 
   // ─── تحكم المدير الحصري في التصنيفات ───
   Future<void> addCategory(String cat) async {
+    if (currentUser == null) return;
     if (!categories.contains(cat)) {
-      categories.add(cat);
-      await _cloud.addCategory(cat);
+      await _cloud.addCategory(currentUser!.id, cat);
       notifyListeners();
     }
   }
 
   Future<void> deleteCategory(String cat) async {
-    if (cat == 'الكل') return;
-    categories.remove(cat);
-    await _cloud.deleteCategory(cat);
+    if (currentUser == null || cat == 'الكل') return;
+    await _cloud.deleteCategory(currentUser!.id, cat);
     notifyListeners();
   }
 
   // ─── تحكم المدير في الموردين ───
   Future<void> updateVendorStatus(String vendorId, String status) async {
-    await _cloud.updateVendorStatus(vendorId, status);
+    if (currentUser == null) return;
+    await _cloud.updateVendorStatus(currentUser!.id, vendorId, status);
     final idx = vendors.indexWhere((v) => v.id == vendorId);
     if (idx != -1) {
       final v = vendors[idx];
@@ -532,16 +617,37 @@ class AppState extends ChangeNotifier {
       );
       notifyListeners();
     }
+
+    // Real-time status-change alert for the vendor (approval / rejection / suspension).
+    try {
+      final msg = status == 'active'
+          ? 'تم قبول وتفعيل حسابك في منصة وُفّرت — يمكنك الآن إضافة أصنافك واستقبال الطلبات.'
+          : status == 'rejected'
+              ? 'تم رفض طلب انضمامك من قبل مدير المنصة. تواصل مع الإدارة للمزيد من التفاصيل.'
+              : status == 'inactive'
+                  ? 'قام مدير المنصة بإيقاف حسابك مؤقتاً. تواصل مع الإدارة لمراجعة الموقف.'
+                  : 'تم تحديث حالة حسابك إلى: $status';
+      await _cloud.sendNotification(NotificationEntity(
+        id: '',
+        title: status == 'active' ? '🎉 تم تفعيل حسابك!' : '🔔 تحديث حالة حسابك',
+        body: msg,
+        createdAt: DateTime.now(),
+        targetPhone: vendorId,
+        payload: 'account:$vendorId',
+      ));
+    } catch (_) {}
   }
 
   Future<void> deleteVendor(String vendorId) async {
-    await _cloud.deleteVendor(vendorId);
+    if (currentUser == null) return;
+    await _cloud.deleteVendor(currentUser!.id, vendorId);
     vendors.removeWhere((v) => v.id == vendorId);
     notifyListeners();
   }
 
   Future<void> addVendorByAdmin(UserEntity vendor) async {
-    await _cloud.saveUser(vendor);
+    if (currentUser == null) return;
+    await _cloud.saveUser(vendor); // Replaced saveVendorByAdmin with existing saveUser
     vendors.add(vendor);
     notifyListeners();
   }
@@ -571,6 +677,34 @@ class AppState extends ChangeNotifier {
     await _cloud.deleteOrder(orderId);
     orders.removeWhere((o) => o.id == orderId);
     notifyListeners();
+  }
+
+  /// Admin edits an order: item quantities (0 removes the line; offer stock
+  /// reconciled atomically server-side) + client info. Client notified once.
+  Future<void> editOrder(
+    String orderId, {
+    Map<String, int>? itemsQty,
+    String? clientName,
+    String? clientPhone,
+    String? clientAddress,
+  }) async {
+    if (itemsQty != null) {
+      for (final e in itemsQty.entries) {
+        await _cloud.updateOrderItem(orderId, e.key, e.value);
+      }
+    }
+    if (clientName != null || clientPhone != null || clientAddress != null) {
+      await _cloud.updateOrderInfo(orderId, name: clientName, phone: clientPhone, address: clientAddress);
+    }
+    final order = orders.where((o) => o.id == orderId).firstOrNull;
+    await _cloud.sendNotification(NotificationEntity(
+      id: '',
+      title: '✏️ تم تعديل طلبك من قبل الإدارة',
+      body: 'طلبك رقم #$orderId تم تعديله. راجع قائمة طلباتك للتفاصيل.',
+      createdAt: DateTime.now(),
+      targetPhone: order?.clientPhone,
+      payload: 'order:$orderId',
+    ));
   }
 
   Future<void> acceptOrder(String id) async => await updateOrderStatus(id, 'مؤكد');

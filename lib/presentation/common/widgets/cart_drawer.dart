@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../state/app_state.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/l10n/app_strings.dart';
 
 class CartDrawer extends StatelessWidget {
   const CartDrawer({super.key});
@@ -36,13 +37,13 @@ class CartDrawer extends StatelessWidget {
                       children: [
                         const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 22),
                         const SizedBox(width: 8),
-                        const Text('سلة المشتريات المجمعة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+                        Text(tr('سلة المشتريات المجمعة'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
                         if (groupedCarts.isNotEmpty)
                           Container(
                             margin: const EdgeInsets.only(right: 8),
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(color: AppColors.brandLight, borderRadius: BorderRadius.circular(6)),
-                            child: Text('${groupedCarts.length} موردين', style: const TextStyle(color: AppColors.brandDeep, fontSize: 10, fontWeight: FontWeight.bold)),
+                            child: Text(trArgs('{n} موردين', {'n': groupedCarts.length}), style: const TextStyle(color: AppColors.brandDeep, fontSize: 10, fontWeight: FontWeight.bold)),
                           ),
                       ],
                     ),
@@ -63,7 +64,7 @@ class CartDrawer extends StatelessWidget {
                           children: [
                             Icon(Icons.remove_shopping_cart_outlined, size: 60, color: AppColors.inkSoft.withValues(alpha: 0.3)),
                             const SizedBox(height: 12),
-                            const Text('سلة الشراء فارغة حالياً', style: TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold, fontSize: 15)),
+                            Text(tr('سلة الشراء فارغة حالياً'), style: const TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold, fontSize: 15)),
                           ],
                         ),
                       )
@@ -74,14 +75,14 @@ class CartDrawer extends StatelessWidget {
                             padding: const EdgeInsets.all(10),
                             margin: const EdgeInsets.only(bottom: 14),
                             decoration: BoxDecoration(color: AppColors.amberSoft, borderRadius: BorderRadius.circular(10)),
-                            child: const Row(
+                            child: Row(
                               children: [
-                                Icon(Icons.info_outline, color: Color(0xFF92400E), size: 18),
-                                SizedBox(width: 8),
+                                const Icon(Icons.info_outline, color: Color(0xFF92400E), size: 18),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'الطلب سينقسم تلقائياً لطلب فرعي لكل مورد للتجهيز والشحن المستقل. الدفع كاش عند الاستلام (COD).',
-                                    style: TextStyle(fontSize: 11, color: Color(0xFF92400E), fontWeight: FontWeight.bold),
+                                    tr('الطلب سينقسم تلقائياً لطلب فرعي لكل مورد للتجهيز والشحن المستقل. الدفع كاش عند الاستلام (COD).'),
+                                    style: const TextStyle(fontSize: 11, color: Color(0xFF92400E), fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
@@ -117,11 +118,11 @@ class CartDrawer extends StatelessWidget {
                                         children: [
                                           const Icon(Icons.store, size: 18, color: AppColors.brand),
                                           const SizedBox(width: 6),
-                                          Text('طلب المورد: $vendorId', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppColors.brandDeep)),
+                                          Text(trArgs('طلب المورد: {id}', {'id': vendorId}), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppColors.brandDeep)),
                                         ],
                                       ),
                                       Text(
-                                        'الحد الأدنى: ${currency(appState.minOrderValuePerVendor)}',
+                                        trArgs('الحد الأدنى: {m}', {'m': currency(appState.minOrderValuePerVendor)}),
                                         style: const TextStyle(fontSize: 10, color: AppColors.inkSoft),
                                       ),
                                     ],
@@ -137,9 +138,24 @@ class CartDrawer extends StatelessWidget {
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(cartItem.product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                                Text(
-                                                  '${currency(cartItem.unitPrice)} / ${cartItem.product.unit}',
-                                                  style: const TextStyle(fontSize: 11, color: AppColors.brandDeep, fontWeight: FontWeight.bold),
+                                                Row(
+                                                  children: [
+                                                    Text(
+                                                      '${currency(cartItem.unitPrice)} / ${cartItem.product.unit}',
+                                                      style: const TextStyle(fontSize: 11, color: AppColors.brandDeep, fontWeight: FontWeight.bold),
+                                                    ),
+                                                    if (cartItem.product.isOffer && !cartItem.product.isOfferActive) ...[
+                                                      const SizedBox(width: 8),
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                        decoration: BoxDecoration(color: AppColors.danger.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                                                        child: const Text(
+                                                          'انتهى العرض',
+                                                          style: TextStyle(color: AppColors.danger, fontSize: 8, fontWeight: FontWeight.bold),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
                                                 ),
                                               ],
                                             ),
@@ -165,18 +181,18 @@ class CartDrawer extends StatelessWidget {
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text('مجموع طلب المورد: ${currency(subtotal)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                                      Text(trArgs('مجموع طلب المورد: {s}', {'s': currency(subtotal)}), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
                                       if (!meetsMin)
                                         Text(
-                                          'يتبقى ${currency(appState.minOrderValuePerVendor - subtotal)} للحد الأدنى!',
+                                          trArgs('يتبقى {d} للحد الأدنى!', {'d': currency(appState.minOrderValuePerVendor - subtotal)}),
                                           style: const TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.bold),
                                         )
                                       else
-                                        const Row(
+                                        Row(
                                           children: [
-                                            Icon(Icons.check_circle, color: Colors.green, size: 14),
-                                            SizedBox(width: 4),
-                                            Text('استوفى الحد الأدنى', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                                            const Icon(Icons.check_circle, color: Colors.green, size: 14),
+                                            const SizedBox(width: 4),
+                                            Text(tr('استوفى الحد الأدنى'), style: const TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
                                           ],
                                         ),
                                     ],
@@ -205,7 +221,7 @@ class CartDrawer extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('إجمالي الخصومات والتوفير:', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+                            Text(tr('إجمالي الخصومات والتوفير:'), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
                             Text('- ${currency(totalSavings)}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w900, fontSize: 13)),
                           ],
                         ),
@@ -214,14 +230,14 @@ class CartDrawer extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('الإجمالي العام لكافة الطلبات:', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                          Text(tr('الإجمالي العام لكافة الطلبات:'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
                           Text(currency(appState.cartTotal), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: AppColors.brandDeep)),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        'طريقة الدفع للمرحلة الأولى: كاش عند الاستلام (COD) لكافة الطلبات الفرعية',
-                        style: TextStyle(fontSize: 10, color: AppColors.inkSoft, fontWeight: FontWeight.bold),
+                      Text(
+                        tr('طريقة الدفع للمرحلة الأولى: كاش عند الاستلام (COD) لكافة الطلبات الفرعية'),
+                        style: const TextStyle(fontSize: 10, color: AppColors.inkSoft, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 12),
                       SizedBox(
@@ -241,15 +257,15 @@ class CartDrawer extends StatelessWidget {
                                   if (ok) {
                                     navigator.pop();
                                     messenger.showSnackBar(
-                                      const SnackBar(
-                                        content: Text('تم تأكيد الطلب بنجاح وتوزيعه على الموردين بشكل فوري!'),
+                                      SnackBar(
+                                        content: Text(tr('تم تأكيد الطلب بنجاح وتوزيعه على الموردين بشكل فوري!')),
                                         backgroundColor: AppColors.brand,
                                       ),
                                     );
                                   } else {
                                     messenger.showSnackBar(
-                                      const SnackBar(
-                                        content: Text('حدث خطأ أو نفذت بعض الكميات المتاحة!'),
+                                      SnackBar(
+                                        content: Text(tr('حدث خطأ أو نفذت بعض الكميات المتاحة!')),
                                         backgroundColor: AppColors.danger,
                                       ),
                                     );
@@ -259,7 +275,7 @@ class CartDrawer extends StatelessWidget {
                           child: appState.isCheckingOut
                               ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                               : Text(
-                                  isValid ? 'تأكيد وتقسيم الطلب (COD)' : 'لم تكتمل الحدود الدنيا للموردين',
+                                  isValid ? tr('تأكيد وتقسيم الطلب (COD)') : tr('لم تكتمل الحدود الدنيا للموردين'),
                                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
                                 ),
                         ),

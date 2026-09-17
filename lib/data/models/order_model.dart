@@ -77,6 +77,7 @@ class OrderModel extends OrderEntity {
     );
   }
 
+  @override
   Map<String, dynamic> toMap() {
     return {
       'id': id,

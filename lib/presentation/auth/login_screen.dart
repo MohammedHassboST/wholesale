@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../domain/entities/user_entity.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/l10n/app_strings.dart';
 import '../state/app_state.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -77,16 +78,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Center(
+                  Center(
                     child: Text(
-                      'منصة وُفّرت - Waffart B2B',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.ink),
+                      tr('منصة وُفّرت - Waffart B2B'),
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.ink),
                     ),
                   ),
-                  const Center(
+                  Center(
                     child: Text(
-                      'سوق الجملة الذكي ومنصة التجارة المتكاملة',
-                      style: TextStyle(fontSize: 12, color: AppColors.inkSoft, fontWeight: FontWeight.w600),
+                      tr('سوق الجملة الذكي ومنصة التجارة المتكاملة'),
+                      style: const TextStyle(fontSize: 12, color: AppColors.inkSoft, fontWeight: FontWeight.w600),
                     ),
                   ),
                   const SizedBox(height: 28),
@@ -108,11 +109,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: Row(
                       children: [
-                        Expanded(child: _buildRoleTab('العميل / المحل', 0, Icons.person_outline)),
+                        Expanded(child: _buildRoleTab(tr('العميل / المحل'), 0, Icons.person_outline)),
                         const SizedBox(width: 4),
-                        Expanded(child: _buildRoleTab('المورد', 1, Icons.business_outlined)),
+                        Expanded(child: _buildRoleTab(tr('المورد'), 1, Icons.business_outlined)),
                         const SizedBox(width: 4),
-                        Expanded(child: _buildRoleTab('المدير', 2, Icons.admin_panel_settings_outlined)),
+                        Expanded(child: _buildRoleTab(tr('المدير'), 2, Icons.admin_panel_settings_outlined)),
                       ],
                     ),
                   ),
@@ -138,14 +139,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         if (selectedRoleIndex == 2) ...[
                           // --- مسار المدير ---
-                          const Row(
+                          Row(
                             children: [
-                              Icon(Icons.security, color: AppColors.brand, size: 20),
-                              SizedBox(width: 8),
+                              const Icon(Icons.security, color: AppColors.brand, size: 20),
+                              const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
-                                  'دخول مدير المنصة (Super Admin)',
-                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                                  tr('دخول مدير المنصة (Super Admin)'),
+                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -154,14 +155,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 16),
                           _buildField(
                             controller: phoneCtrl,
-                            label: 'معرف المدير أو رقم الهاتف',
+                            label: tr('معرف المدير أو رقم الهاتف'),
                             hint: '01000000000',
                             icon: Icons.badge_outlined,
                           ),
                           const SizedBox(height: 14),
                           _buildField(
                             controller: otpCtrl,
-                            label: 'كلمة المرور / الكود الخاص (admin123)',
+                            label: tr('كلمة المرور / الكود الخاص (admin123)'),
                             hint: '••••••••',
                             icon: Icons.lock_outline,
                             obscure: true,
@@ -173,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  isRegisteringForVendor ? 'تسجيل حساب مورد جديد' : 'تسجيل دخول المورد الحالي',
+                                  isRegisteringForVendor ? tr('تسجيل حساب مورد جديد') : tr('تسجيل دخول المورد الحالي'),
                                   style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -183,7 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   setState(() => isRegisteringForVendor = !isRegisteringForVendor);
                                 },
                                 child: Text(
-                                  isRegisteringForVendor ? 'لديك حساب؟ سجل دخول' : 'مورد جديد؟ انضم الآن',
+                                  isRegisteringForVendor ? tr('لديك حساب؟ سجل دخول') : tr('مورد جديد؟ انضم الآن'),
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.brand),
                                 ),
                               ),
@@ -192,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 12),
                           _buildField(
                             controller: phoneCtrl,
-                            label: 'رقم الهاتف (إجباري)',
+                            label: tr('رقم الهاتف (إجباري)'),
                             hint: '01xxxxxxxxx',
                             icon: Icons.phone_outlined,
                             type: TextInputType.phone,
@@ -201,43 +202,43 @@ class _LoginScreenState extends State<LoginScreen> {
                           if (isRegisteringForVendor) ...[
                             _buildField(
                               controller: nameCtrl,
-                              label: 'الاسم ثلاثي (إجباري)',
-                              hint: 'أحمد محمد علي',
+                              label: tr('الاسم ثلاثي (إجباري)'),
+                              hint: tr('أحمد محمد علي'),
                               icon: Icons.person_outline,
                             ),
                             const SizedBox(height: 14),
                             _buildField(
                               controller: addressCtrl,
-                              label: 'العنوان التفصيلي ومقر العمل (إجباري)',
-                              hint: 'المنطقة الصناعية - العبور',
+                              label: tr('العنوان التفصيلي ومقر العمل (إجباري)'),
+                              hint: tr('المنطقة الصناعية - العبور'),
                               icon: Icons.location_on_outlined,
                             ),
                             const SizedBox(height: 14),
                             _buildField(
                               controller: businessActivityCtrl,
-                              label: 'النشاط التجاري (إجباري)',
-                              hint: 'تجارة مواد غذائية وزيوت بالجملة',
+                              label: tr('النشاط التجاري (إجباري)'),
+                              hint: tr('تجارة مواد غذائية وزيوت بالجملة'),
                               icon: Icons.storefront_outlined,
                             ),
                             const SizedBox(height: 14),
                           ],
                           _buildField(
                             controller: otpCtrl,
-                            label: 'كود التأكيد / المرور (إجباري)',
+                            label: tr('كود التأكيد / المرور (إجباري)'),
                             hint: '123456',
                             icon: Icons.verified_user_outlined,
                             type: TextInputType.number,
                           ),
                         ] else ...[
                           // --- مسار العميل أو صاحب المحل ---
-                          const Row(
+                          Row(
                             children: [
-                              Icon(Icons.shopping_bag_outlined, color: AppColors.brand, size: 20),
-                              SizedBox(width: 8),
+                              const Icon(Icons.shopping_bag_outlined, color: AppColors.brand, size: 20),
+                              const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
-                                  'تسجيل دخول العميل أو صاحب المحل',
-                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                                  tr('تسجيل دخول العميل أو صاحب المحل'),
+                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -246,7 +247,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 16),
                           _buildField(
                             controller: phoneCtrl,
-                            label: 'رقم الهاتف (إجباري)',
+                            label: tr('رقم الهاتف (إجباري)'),
                             hint: '01xxxxxxxxx',
                             icon: Icons.phone_outlined,
                             type: TextInputType.phone,
@@ -254,28 +255,28 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 14),
                           _buildField(
                             controller: nameCtrl,
-                            label: 'الاسم بالكامل (إجباري)',
-                            hint: 'محمد أحمد إبراهيم',
+                            label: tr('الاسم بالكامل (إجباري)'),
+                            hint: tr('محمد أحمد إبراهيم'),
                             icon: Icons.person_outline,
                           ),
                           const SizedBox(height: 14),
                           _buildField(
                             controller: addressCtrl,
-                            label: 'العنوان التفصيلي للاستلام (إجباري)',
-                            hint: 'شارع الجمهورية - الجيزة',
+                            label: tr('العنوان التفصيلي للاستلام (إجباري)'),
+                            hint: tr('شارع الجمهورية - الجيزة'),
                             icon: Icons.location_on_outlined,
                           ),
                           const SizedBox(height: 14),
                           _buildField(
                             controller: shopCtrl,
-                            label: 'اسم المحل التجاري (اختياري)',
-                            hint: 'سوبر ماركت الإخلاص',
+                            label: tr('اسم المحل التجاري (اختياري)'),
+                            hint: tr('سوبر ماركت الإخلاص'),
                             icon: Icons.store_outlined,
                           ),
                           const SizedBox(height: 14),
                           _buildField(
                             controller: otpCtrl,
-                            label: 'كود التأكيد (OTP)',
+                            label: tr('كود التأكيد (OTP)'),
                             hint: '123456',
                             icon: Icons.lock_clock_outlined,
                             type: TextInputType.number,
@@ -297,7 +298,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             onPressed: _handleLoginSubmit,
                             child: Text(
-                              selectedRoleIndex == 1 && isRegisteringForVendor ? 'إرسال طلب الانضمام' : 'دخول / تأكيد الحساب',
+                              selectedRoleIndex == 1 && isRegisteringForVendor ? tr('إرسال طلب الانضمام') : tr('دخول / تأكيد الحساب'),
                               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
                             ),
                           ),
@@ -407,7 +408,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleLoginSubmit() async {
     final phone = phoneCtrl.text.trim();
     if (phone.isEmpty) {
-      _showError('يرجى إدخال رقم الهاتف أو المعرف أولاً');
+      _showError(tr('يرجى إدخال رقم الهاتف أو المعرف أولاً'));
       return;
     }
 
@@ -423,7 +424,7 @@ class _LoginScreenState extends State<LoginScreen> {
             status: 'active',
           ));
         } else {
-          _showError('كود مرور المدير غير صحيح (استخدم: admin123)');
+          _showError(tr('كود مرور المدير غير صحيح (استخدم: admin123)'));
         }
       } else if (selectedRoleIndex == 1) {
         // 2. مسار المورد
@@ -433,7 +434,7 @@ class _LoginScreenState extends State<LoginScreen> {
               addressCtrl.text.trim().isEmpty ||
               businessActivityCtrl.text.trim().isEmpty ||
               otpCtrl.text.trim().isEmpty) {
-            _showError('جميع الحقول إجبارية للمورد الجديد (الهاتف، الاسم ثلاثي، العنوان، النشاط، الكود)');
+            _showError(tr('جميع الحقول إجبارية للمورد الجديد (الهاتف، الاسم ثلاثي، العنوان، النشاط، الكود)'));
             return;
           }
 
@@ -449,11 +450,11 @@ class _LoginScreenState extends State<LoginScreen> {
           );
 
           await appState.login(newVendor);
-          _showSuccess('تم إرسال طلب الانضمام بنجاح! سيتم تفعيل حسابك فور مراجعة مدير المنصة');
+          _showSuccess(tr('تم إرسال طلب الانضمام بنجاح! سيتم تفعيل حسابك فور مراجعة مدير المنصة'));
         } else {
           // مورد له حساب بالفعل
           if (otpCtrl.text.trim().isEmpty) {
-            _showError('يرجى إدخال كود التأكيد للدخول');
+            _showError(tr('يرجى إدخال كود التأكيد للدخول'));
             return;
           }
 
@@ -469,7 +470,7 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         // 3. مسار العميل أو صاحب المحل
         if (nameCtrl.text.trim().isEmpty || addressCtrl.text.trim().isEmpty) {
-          _showError('الاسم بالكامل والعنوان التفصيلي إجباريان للعميل');
+          _showError(tr('الاسم بالكامل والعنوان التفصيلي إجباريان للعميل'));
           return;
         }
 
@@ -484,7 +485,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ));
       }
     } catch (e) {
-      _showError('حدث خطأ أثناء تسجيل الدخول: $e');
+      _showError(trArgs('حدث خطأ أثناء تسجيل الدخول: {e}', {'e': e}));
     }
   }
 }

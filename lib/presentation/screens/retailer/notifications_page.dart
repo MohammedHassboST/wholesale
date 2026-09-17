@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../state/app_state.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/l10n/app_strings.dart';
 
 class NotificationsPage extends StatelessWidget {
   const NotificationsPage({super.key});
@@ -10,8 +11,15 @@ class NotificationsPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.paper,
       appBar: AppBar(
-        title: const Text('الإشعارات', style: TextStyle(fontWeight: FontWeight.w900)),
+        title: Text(tr('الإشعارات'), style: const TextStyle(fontWeight: FontWeight.w900)),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.done_all),
+            tooltip: tr('تحديد الكل كمقروء'),
+            onPressed: () => appState.markAllNotificationsAsRead(),
+          ),
+        ],
       ),
       body: ListenableBuilder(
         listenable: appState,
@@ -26,7 +34,7 @@ class NotificationsPage extends StatelessWidget {
                   Icon(Icons.notifications_none_outlined, size: 64, color: AppColors.inkSoft.withValues(alpha: 0.3)),
                   const SizedBox(height: 16),
                   Text(
-                    'مفيش إشعارات حالياً',
+                    tr('مفيش إشعارات حالياً'),
                     style: TextStyle(
                       fontSize: 16,
                       color: AppColors.inkSoft.withValues(alpha: 0.6),

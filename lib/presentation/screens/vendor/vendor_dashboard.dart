@@ -4,6 +4,8 @@ import 'dart:io';
 import '../../state/app_state.dart';
 import '../../../core/constants/constants.dart';
 import '../../../domain/entities/product_entity.dart';
+import '../retailer/notifications_page.dart';
+import '../../../core/l10n/app_strings.dart';
 
 class VendorDashboard extends StatefulWidget {
   const VendorDashboard({super.key});
@@ -20,23 +22,23 @@ class _VendorDashboardState extends State<VendorDashboard> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.logout, color: AppColors.danger),
-            SizedBox(width: 8),
-            Text('تسجيل الخروج', style: TextStyle(fontWeight: FontWeight.w900)),
+            const Icon(Icons.logout, color: AppColors.danger),
+            const SizedBox(width: 8),
+            Text(tr('تسجيل الخروج'), style: const TextStyle(fontWeight: FontWeight.w900)),
           ],
         ),
-        content: const Text('هل تريد الخروج من لوحة حساب المورد؟'),
+        content: Text(tr('هل تريد الخروج من لوحة حساب المورد؟')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('إلغاء'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);
               appState.logout();
             },
-            child: const Text('نعم، الخروج', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(tr('نعم، الخروج'), style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -49,7 +51,8 @@ class _VendorDashboardState extends State<VendorDashboard> {
       animation: appState,
       builder: (context, _) {
         final vendor = appState.currentUser;
-        final isPending = vendor?.status == 'pending';
+        final status = vendor?.status ?? 'active';
+        final isBlocked = status != 'active';
 
         return Scaffold(
           backgroundColor: AppColors.paper,
@@ -57,10 +60,10 @@ class _VendorDashboardState extends State<VendorDashboard> {
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('لوحة المورد: ${vendor?.name ?? ""}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                Text(trArgs('لوحة المورد: {n}', {'n': vendor?.name ?? ''}), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
                 Text(
-                  isPending ? '⚠️ الحساب قيد المراجعة والاعتماد' : 'حساب نشط ومعتمد',
-                  style: TextStyle(fontSize: 10, color: isPending ? AppColors.amberSoft : AppColors.brandLight),
+                  _vendorStatusText(status),
+                  style: TextStyle(fontSize: 10, color: status == 'active' ? AppColors.brandLight : AppColors.amberSoft),
                 ),
               ],
             ),
@@ -70,28 +73,34 @@ class _VendorDashboardState extends State<VendorDashboard> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.language),
-                tooltip: 'تغيير اللغة',
+                tooltip: tr('تغيير اللغة'),
                 onPressed: () => appState.toggleLocale(),
               ),
               IconButton(
                 icon: const Icon(Icons.logout),
-                tooltip: 'تسجيل الخروج',
+                tooltip: tr('تسجيل الخروج'),
                 onPressed: () => _confirmLogout(context),
               ),
             ],
           ),
-          body: isPending
-              ? _buildPendingNotice()
-              : IndexedStack(
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1100),
+              child: isBlocked
+                  ? _buildBlockedNotice(status)
+                  : IndexedStack(
                   index: _currentIndex,
                   children: [
                     _buildVendorOrdersTab(),
                     _buildVendorProductsTab(),
                     _buildVendorOffersTab(),
                     _buildVendorReportsTab(),
+                    const NotificationsPage(),
                   ],
                 ),
-          bottomNavigationBar: isPending
+          ),
+          ),
+          bottomNavigationBar: isBlocked
               ? null
               : BottomNavigationBar(
                   currentIndex: _currentIndex,
@@ -102,11 +111,33 @@ class _VendorDashboardState extends State<VendorDashboard> {
                   type: BottomNavigationBarType.fixed,
                   selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                   unselectedLabelStyle: const TextStyle(fontSize: 11),
-                  items: const [
-                    BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long), label: 'طلباتي'),
-                    BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), activeIcon: Icon(Icons.inventory_2), label: 'الأصناف والمخزون'),
-                    BottomNavigationBarItem(icon: Icon(Icons.local_offer_outlined), activeIcon: Icon(Icons.local_offer), label: 'إدارة العروض'),
-                    BottomNavigationBarItem(icon: Icon(Icons.bar_chart_outlined), activeIcon: Icon(Icons.bar_chart), label: 'التقارير والأداء'),
+                  items: [
+                    BottomNavigationBarItem(icon: const Icon(Icons.receipt_long_outlined), activeIcon: const Icon(Icons.receipt_long), label: tr('طلباتي')),
+                    BottomNavigationBarItem(icon: const Icon(Icons.inventory_2_outlined), activeIcon: const Icon(Icons.inventory_2), label: tr('الأصناف والمخزون')),
+                    BottomNavigationBarItem(icon: const Icon(Icons.local_offer_outlined), activeIcon: const Icon(Icons.local_offer), label: tr('إدارة العروض')),
+                    BottomNavigationBarItem(icon: const Icon(Icons.bar_chart_outlined), activeIcon: const Icon(Icons.bar_chart), label: tr('التقارير والأداء')),
+                    BottomNavigationBarItem(
+                      icon: Stack(
+                        children: [
+                          const Icon(Icons.notifications_outlined),
+                          if (appState.unreadNotificationsCount > 0)
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: const BoxDecoration(color: AppColors.danger, shape: BoxShape.circle),
+                                child: Text(
+                                  '${appState.unreadNotificationsCount}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      activeIcon: const Icon(Icons.notifications),
+                      label: tr('الإشعارات'),
+                    ),
                   ],
                 ),
         );
@@ -114,7 +145,30 @@ class _VendorDashboardState extends State<VendorDashboard> {
     );
   }
 
-  Widget _buildPendingNotice() {
+  String _vendorStatusText(String status) {
+    switch (status) {
+      case 'pending':
+        return tr('⚠️ الحساب قيد المراجعة والاعتماد');
+      case 'inactive':
+        return tr('⏸️ الحساب موقوف مؤقتاً');
+      case 'rejected':
+        return tr('⛔ تم رفض الحساب');
+      default:
+        return tr('حساب نشط ومعتمد');
+    }
+  }
+
+  Widget _buildBlockedNotice(String status) {
+    final title = status == 'rejected'
+        ? tr('تم رفض طلب انضمامك')
+        : status == 'inactive'
+            ? tr('حسابك موقوف مؤقتاً')
+            : tr('حسابك قيد مراجعة الإدارة');
+    final body = status == 'rejected'
+        ? tr('راجع مدير المنصة بيانات نشاطك التجاري وقرر رفض الطلب. يمكنك التواصل مع الإدارة لمعرفة السبب وإعادة التقديم.')
+        : status == 'inactive'
+            ? tr('قام مدير المنصة بإيقاف حسابك مؤقتاً. تواصل مع الإدارة لمراجعة الموقف وإعادة التفعيل.')
+            : tr('شكراً لانضمامك إلى منصة وُفّرت. يقوم مدير المنصة بمراجعة بيانات نشاطك التجاري، وسيتم تفعيل حسابك فور الانتهاء.');
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -123,21 +177,21 @@ class _VendorDashboardState extends State<VendorDashboard> {
           children: [
             const Icon(Icons.hourglass_empty_rounded, size: 70, color: AppColors.amber),
             const SizedBox(height: 16),
-            const Text(
-              'حسابك قيد مراجعة الإدارة',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'شكراً لانضمامك إلى منصة وُفّرت. يقوم مدير المنصة بمراجعة بيانات نشاطك التجاري، وسيتم تفعيل حسابك فور الانتهاء.',
+            Text(
+              body,
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.inkSoft, height: 1.5),
+              style: const TextStyle(color: AppColors.inkSoft, height: 1.5),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
               onPressed: () => appState.logout(),
-              child: const Text('تسجيل الخروج والعودة لاحقاً'),
+              child: Text(tr('تسجيل الخروج والعودة لاحقاً')),
             ),
           ],
         ),
@@ -152,15 +206,15 @@ class _VendorDashboardState extends State<VendorDashboard> {
     return Scaffold(
       backgroundColor: AppColors.paper,
       body: myOrders.isEmpty
-          ? const Center(
+          ? Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.inbox_outlined, size: 50, color: AppColors.inkSoft),
-                  SizedBox(height: 10),
-                  Text('لا توجد طلبات واردة لك حتى الآن', style: TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold)),
-                ],
-              ),
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.inbox_outlined, size: 50, color: AppColors.inkSoft),
+              const SizedBox(height: 10),
+              Text(tr('لا توجد طلبات واردة لك حتى الآن'), style: const TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold)),
+            ],
+          ),
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -181,21 +235,21 @@ class _VendorDashboardState extends State<VendorDashboard> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('طلب رقم: ${o.id}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                          Text(trArgs('طلب رقم: {id}', {'id': o.id}), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: AppColors.brand.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Text(o.status, style: const TextStyle(color: AppColors.brandDeep, fontWeight: FontWeight.bold, fontSize: 11)),
+                            child: Text(orderStatusLabel(o.status), style: const TextStyle(color: AppColors.brandDeep, fontWeight: FontWeight.bold, fontSize: 11)),
                           ),
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Text('العميل: ${o.clientName} | هاتف: ${o.clientPhone}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      Text(trArgs('العميل: {n} | هاتف: {p}', {'n': o.clientName, 'p': o.clientPhone}), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       if (o.clientAddress != null)
-                        Text('العنوان التفصيلي: ${o.clientAddress}', style: const TextStyle(color: AppColors.inkSoft, fontSize: 11)),
+                        Text(trArgs('العنوان التفصيلي: {a}', {'a': o.clientAddress}), style: const TextStyle(color: AppColors.inkSoft, fontSize: 11)),
                       const Divider(height: 14),
                       ...o.items.map((it) => Padding(
                             padding: const EdgeInsets.symmetric(vertical: 2),
@@ -214,8 +268,8 @@ class _VendorDashboardState extends State<VendorDashboard> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('المستحق لك: ${currency(o.total)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.brandDeep)),
-                              const Text('الدفع: كاش عند الاستلام (COD)', style: TextStyle(fontSize: 10, color: AppColors.inkSoft)),
+                              Text(trArgs('المستحق لك: {t}', {'t': currency(o.total)}), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.brandDeep)),
+                              Text(tr('الدفع: كاش عند الاستلام (COD)'), style: TextStyle(fontSize: 10, color: AppColors.inkSoft)),
                             ],
                           ),
                           DropdownButton<String>(
@@ -223,7 +277,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
                                 ? o.status
                                 : 'قيد المراجعة',
                             items: ['قيد المراجعة', 'مؤكد', 'جاري التجهيز', 'في الطريق', 'تم التسليم', 'مرفوض']
-                                .map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 11)))).toList(),
+                                .map((s) => DropdownMenuItem(value: s, child: Text(orderStatusLabel(s), style: const TextStyle(fontSize: 11)))).toList(),
                             onChanged: (newStatus) {
                               if (newStatus != null) appState.updateOrderStatus(o.id, newStatus);
                             },
@@ -245,15 +299,15 @@ class _VendorDashboardState extends State<VendorDashboard> {
     return Scaffold(
       backgroundColor: AppColors.paper,
       body: myProducts.isEmpty
-          ? const Center(
+          ? Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.inventory_2_outlined, size: 50, color: AppColors.inkSoft),
-                  SizedBox(height: 10),
-                  Text('لم تقم بإضافة أي أصناف بعد', style: TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold)),
-                ],
-              ),
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.inventory_2_outlined, size: 50, color: AppColors.inkSoft),
+              const SizedBox(height: 10),
+              Text(tr('لم تقم بإضافة أي أصناف بعد'), style: const TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold)),
+            ],
+          ),
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -292,14 +346,24 @@ class _VendorDashboardState extends State<VendorDashboard> {
                           children: [
                             Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                             const SizedBox(height: 2),
-                            Text('السعر: ${currency(p.price)} / ${p.unit}', style: const TextStyle(color: AppColors.brandDeep, fontWeight: FontWeight.bold, fontSize: 12)),
-                            Text('القسم: ${p.category} | الحد الأدنى: ${p.minOrderQty}', style: const TextStyle(color: AppColors.inkSoft, fontSize: 10)),
+                            Text(trArgs('السعر: {p} / {u}', {'p': currency(p.price), 'u': unitLabel(p.unit)}), style: const TextStyle(color: AppColors.brandDeep, fontWeight: FontWeight.bold, fontSize: 12)),
+                            Text(trArgs('القسم: {c} | الحد الأدنى: {m}', {'c': categoryLabel(p.category), 'm': p.minOrderQty}), style: const TextStyle(color: AppColors.inkSoft, fontSize: 10)),
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
-                        onPressed: () => appState.deleteProduct(p.id),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, color: AppColors.brand, size: 20),
+                            tooltip: tr('تعديل السعر والشرائح'),
+                            onPressed: () => _showEditProductDialog(context, p),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
+                            onPressed: () => appState.deleteProduct(p.id),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -310,7 +374,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
         backgroundColor: AppColors.brand,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
-        label: const Text('إضافة صنف جديد'),
+        label: Text(tr('إضافة صنف جديد')),
         onPressed: () => _showAddProductModal(context),
       ),
     );
@@ -327,6 +391,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
     final validCategories = appState.categories.where((c) => c != 'الكل').toList();
     String selectedCat = validCategories.isNotEmpty ? validCategories.first : 'مواد غذائية';
     File? pickedFile;
+    final tiers = <PriceTier>[];
 
     showModalBottomSheet(
       context: context,
@@ -341,43 +406,88 @@ class _VendorDashboardState extends State<VendorDashboard> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.add_box, color: AppColors.brand),
-                    SizedBox(width: 8),
-                    Text('إضافة صنف جديد للمتجر', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    const Icon(Icons.add_box, color: AppColors.brand),
+                    const SizedBox(width: 8),
+                    Text(tr('إضافة صنف جديد للمتجر'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                   ],
                 ),
                 const SizedBox(height: 16),
-                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم الصنف التجاري')),
+                TextField(controller: nameCtrl, decoration: InputDecoration(labelText: tr('اسم الصنف التجاري'))),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'سعر بيع الجملة (ج.م)'))),
+                    Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('سعر بيع الجملة (ج.م)')))),
                     const SizedBox(width: 10),
-                    Expanded(child: TextField(controller: minQtyCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الحد الأدنى للطلب'))),
+                    Expanded(child: TextField(controller: minQtyCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('الحد الأدنى للطلب')))),
                   ],
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: kWholesaleUnits.contains(selectedUnit) ? selectedUnit : kWholesaleUnits.first,
-                  items: kWholesaleUnits.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                  items: kWholesaleUnits.map((u) => DropdownMenuItem(value: u, child: Text(unitLabel(u)))).toList(),
                   onChanged: (v) => setModalState(() => selectedUnit = v!),
-                  decoration: const InputDecoration(labelText: 'وحدة بيع الجملة'),
+                  decoration: InputDecoration(labelText: tr('وحدة بيع الجملة')),
                 ),
                 if (selectedUnit == 'أخرى (تحديد يدوي)') ...[
                   const SizedBox(height: 10),
-                  TextField(controller: customUnitCtrl, decoration: const InputDecoration(labelText: 'اسم الوحدة المخصصة (مثال: طرد 24 قطعة)')),
+                  TextField(controller: customUnitCtrl, decoration: InputDecoration(labelText: tr('اسم الوحدة المخصصة (مثال: طرد 24 قطعة)'))),
                 ],
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: selectedCat,
-                  items: validCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                  items: validCategories.map((c) => DropdownMenuItem(value: c, child: Text(categoryLabel(c)))).toList(),
                   onChanged: (v) => setModalState(() => selectedCat = v!),
-                  decoration: const InputDecoration(labelText: 'التصنيف'),
+                  decoration: InputDecoration(labelText: tr('التصنيف')),
                 ),
                 const SizedBox(height: 12),
-                TextField(controller: imageUrlCtrl, decoration: const InputDecoration(labelText: 'رابط صورة المنتج (اختياري)')),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.paper,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            tr('التسعير المتدرج للكميات'),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _showAddTierDialog(ctx, tiers, setModalState),
+                            icon: const Icon(Icons.add, size: 16),
+                            label: Text(tr('إضافة شريحة'), style: const TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                      if (tiers.isEmpty)
+                        Text(
+                          tr('بدون شرائح — سعر ثابت لكل الكميات'),
+                          style: const TextStyle(fontSize: 11, color: AppColors.inkSoft),
+                        )
+                      else
+                        Wrap(
+                          spacing: 6,
+                          children: [
+                            for (final t in tiers)
+                              Chip(
+                                label: Text('≥ ${t.minQty} : ${currency(t.price)}', style: const TextStyle(fontSize: 11)),
+                                deleteIcon: const Icon(Icons.close, size: 14),
+                                onDeleted: () => setModalState(() => tiers.remove(t)),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(controller: imageUrlCtrl, decoration: InputDecoration(labelText: tr('رابط صورة المنتج (اختياري)'))),
                 const SizedBox(height: 12),
 
                 // رفع الصورة من استوديو الهاتف
@@ -393,15 +503,15 @@ class _VendorDashboardState extends State<VendorDashboard> {
                         }
                       },
                       icon: const Icon(Icons.photo_library),
-                      label: const Text('رفع من استوديو الهاتف'),
+                      label: Text(tr('رفع من استوديو الهاتف')),
                     ),
                     const SizedBox(width: 10),
                     if (pickedFile != null)
-                      const Row(
+                      Row(
                         children: [
-                          Icon(Icons.check_circle, color: Colors.green, size: 16),
-                          SizedBox(width: 4),
-                          Text('تم اختيار الصورة', style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
+                          const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                          const SizedBox(width: 4),
+                          Text(tr('تم اختيار الصورة'), style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
                         ],
                       ),
                   ],
@@ -429,11 +539,135 @@ class _VendorDashboardState extends State<VendorDashboard> {
                         unit: finalUnit,
                         minOrderQty: int.tryParse(minQtyCtrl.text) ?? 1,
                         imagePath: imagePath,
+                        priceTiers: List.unmodifiable(tiers),
                       ));
                       Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ الصنف بنجاح')));
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('تم حفظ الصنف بنجاح'))));
                     },
-                    child: const Text('حفظ وإضافة الصنف', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: Text(tr('حفظ وإضافة الصنف'), style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddTierDialog(BuildContext context, List<PriceTier> tiers, void Function(void Function()) refresh) {
+    final qtyCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(tr('إضافة شريحة سعرية'), style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: qtyCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('الكمية من (مثال: 10)'))),
+            const SizedBox(height: 10),
+            TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('سعر الوحدة (ج.م)'))),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('إلغاء'))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
+            onPressed: () {
+              final q = int.tryParse(qtyCtrl.text) ?? 0;
+              final pr = double.tryParse(priceCtrl.text) ?? 0.0;
+              if (q <= 0 || pr <= 0) return;
+              refresh(() {
+                tiers.removeWhere((t) => t.minQty == q);
+                tiers.add(PriceTier(minQty: q, price: pr));
+                tiers.sort((a, b) => a.minQty.compareTo(b.minQty));
+              });
+              Navigator.pop(ctx);
+            },
+            child: Text(tr('إضافة')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditProductDialog(BuildContext context, ProductEntity p) {
+    final priceCtrl = TextEditingController(text: p.price.toStringAsFixed(0));
+    final minQtyCtrl = TextEditingController(text: p.minOrderQty.toString());
+    final tiers = p.priceTiers.map((t) => PriceTier(minQty: t.minQty, price: t.price)).toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.edit, color: AppColors.brand),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('${tr('تعديل')}: ${p.name}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('السعر الأساسي (ج.م)')))),
+                    const SizedBox(width: 10),
+                    Expanded(child: TextField(controller: minQtyCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('الحد الأدنى للطلب')))),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(tr('شرائح الكميات'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    TextButton.icon(
+                      onPressed: () => _showAddTierDialog(ctx, tiers, setModalState),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: Text(tr('إضافة شريحة'), style: const TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+                if (tiers.isEmpty)
+                  Text(tr('بدون شرائح — سعر ثابت'), style: const TextStyle(fontSize: 11, color: AppColors.inkSoft))
+                else
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      for (final t in tiers)
+                        Chip(
+                          label: Text('≥ ${t.minQty} : ${currency(t.price)}', style: const TextStyle(fontSize: 11)),
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          onDeleted: () => setModalState(() => tiers.remove(t)),
+                        ),
+                    ],
+                  ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
+                    onPressed: () {
+                      appState.updateProduct(p.copyWith(
+                        price: double.tryParse(priceCtrl.text) ?? p.price,
+                        minOrderQty: int.tryParse(minQtyCtrl.text) ?? p.minOrderQty,
+                        priceTiers: List.unmodifiable(tiers),
+                      ));
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('تم حفظ التعديلات'))));
+                    },
+                    child: Text(tr('حفظ التعديلات'), style: const TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -453,20 +687,20 @@ class _VendorDashboardState extends State<VendorDashboard> {
       body: myOffers.isEmpty
           ? Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.local_offer_outlined, size: 50, color: AppColors.inkSoft),
-                  const SizedBox(height: 10),
-                  const Text('لا توجد عروض مخصصة حالياً', style: TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
-                    onPressed: () => _showCreateOfferDialog(context),
-                    icon: const Icon(Icons.add),
-                    label: const Text('إنشاء وتجهيز عرض جديد'),
-                  ),
-                ],
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.local_offer_outlined, size: 50, color: AppColors.inkSoft),
+              const SizedBox(height: 10),
+              Text(tr('لا توجد عروض مخصصة حالياً'), style: const TextStyle(color: AppColors.inkSoft, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
+                onPressed: () => _showCreateOfferDialog(context),
+                icon: const Icon(Icons.add),
+                label: Text(tr('إنشاء وتجهيز عرض جديد')),
               ),
+            ],
+          ),
             )
           : ListView(
               padding: const EdgeInsets.all(16),
@@ -474,12 +708,12 @@ class _VendorDashboardState extends State<VendorDashboard> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('العروض المجدولة والحالية', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text(tr('العروض المجدولة والحالية'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
                       onPressed: () => _showCreateOfferDialog(context),
                       icon: const Icon(Icons.add, size: 16),
-                      label: const Text('عرض جديد'),
+                      label: Text(tr('عرض جديد')),
                     ),
                   ],
                 ),
@@ -488,13 +722,13 @@ class _VendorDashboardState extends State<VendorDashboard> {
                   final isScheduled = offer.offerStartDate != null && DateTime.now().isBefore(offer.offerStartDate!);
                   final isExpired = (offer.offerEndDate != null && DateTime.now().isAfter(offer.offerEndDate!)) || offer.offerRemainingQty <= 0;
 
-                  String badgeText = 'عرض نشط 🔥';
+                  String badgeText = tr('عرض نشط 🔥');
                   Color badgeColor = Colors.green;
                   if (isScheduled) {
-                    badgeText = 'مجدول لتاريخ قادم ⏳';
+                    badgeText = tr('مجدول لتاريخ قادم ⏳');
                     badgeColor = AppColors.amber;
                   } else if (isExpired) {
-                    badgeText = 'منتهي (يعود للسعر الأصلي) ⚠️';
+                    badgeText = tr('منتهي (يعود للسعر الأصلي) ⚠️');
                     badgeColor = AppColors.danger;
                   }
 
@@ -521,13 +755,13 @@ class _VendorDashboardState extends State<VendorDashboard> {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text('سعر العرض: ${currency(offer.offerPrice)} (السعر الأصلي: ${currency(offer.price)}) / ${offer.unit}',
+                        Text(trArgs('سعر العرض: {o} (السعر الأصلي: {p}) / {u}', {'o': currency(offer.offerPrice), 'p': currency(offer.price), 'u': unitLabel(offer.unit)}),
                             style: const TextStyle(fontSize: 12, color: AppColors.brandDeep, fontWeight: FontWeight.bold)),
-                        Text('الكمية المتبقية: ${offer.offerRemainingQty} من ${offer.offerTotalQty}',
+                        Text(trArgs('الكمية المتبقية: {r} من {t}', {'r': offer.offerRemainingQty, 't': offer.offerTotalQty}),
                             style: const TextStyle(fontSize: 11, color: AppColors.inkSoft)),
                         if (offer.offerStartDate != null || offer.offerEndDate != null)
                           Text(
-                            'الفترة: ${offer.offerStartDate != null ? formatEgyptDate(offer.offerStartDate!) : "الآن"} إلى ${offer.offerEndDate != null ? formatEgyptDate(offer.offerEndDate!) : "حتى نفاذ الكمية"}',
+                            trArgs('الفترة: {s} إلى {e}', {'s': offer.offerStartDate != null ? formatEgyptDate(offer.offerStartDate!) : tr('الآن'), 'e': offer.offerEndDate != null ? formatEgyptDate(offer.offerEndDate!) : tr('حتى نفاذ الكمية')}),
                             style: const TextStyle(fontSize: 10, color: AppColors.inkSoft),
                           ),
                         const Divider(height: 14),
@@ -537,7 +771,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
                             TextButton.icon(
                               onPressed: () => appState.deleteOffer(offer.id),
                               icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
-                              label: const Text('إلغاء العرض', style: TextStyle(color: AppColors.danger, fontSize: 12)),
+                              label: Text(tr('إلغاء العرض'), style: TextStyle(color: AppColors.danger, fontSize: 12)),
                             ),
                           ],
                         ),
@@ -553,7 +787,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
   void _showCreateOfferDialog(BuildContext context) {
     final availableProducts = appState.products.where((p) => !p.isOffer).toList();
     if (availableProducts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يرجى إضافة أصناف أولاً قبل عمل عروض عليها')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('يرجى إضافة أصناف أولاً قبل عمل عروض عليها'))));
       return;
     }
 
@@ -568,7 +802,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('تجهيز وجدولة عرض جديد', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(tr('تجهيز وجدولة عرض جديد'), style: TextStyle(fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -577,12 +811,12 @@ class _VendorDashboardState extends State<VendorDashboard> {
                   initialValue: selectedProdId,
                   items: availableProducts.map((p) => DropdownMenuItem(value: p.id, child: Text(p.name))).toList(),
                   onChanged: (v) => setDialogState(() => selectedProdId = v!),
-                  decoration: const InputDecoration(labelText: 'اختر الصنف'),
+                  decoration: InputDecoration(labelText: tr('اختر الصنف')),
                 ),
                 const SizedBox(height: 10),
-                TextField(controller: offerPriceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'سعر العرض المخفض (ج.م)')),
+                TextField(controller: offerPriceCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('سعر العرض المخفض (ج.م)'))),
                 const SizedBox(height: 10),
-                TextField(controller: qtyCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الكمية الإجمالية المخصصة للعرض')),
+                TextField(controller: qtyCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('الكمية الإجمالية المخصصة للعرض'))),
                 const SizedBox(height: 14),
                 Row(
                   children: [
@@ -597,7 +831,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
                           );
                           if (picked != null) setDialogState(() => startDate = picked);
                         },
-                        child: Text(startDate == null ? 'تاريخ البداية' : formatEgyptDate(startDate!), style: const TextStyle(fontSize: 11)),
+                        child: Text(startDate == null ? tr('تاريخ البداية') : formatEgyptDate(startDate!), style: const TextStyle(fontSize: 11)),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -612,7 +846,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
                           );
                           if (picked != null) setDialogState(() => endDate = picked);
                         },
-                        child: Text(endDate == null ? 'تاريخ النهاية' : formatEgyptDate(endDate!), style: const TextStyle(fontSize: 11)),
+                        child: Text(endDate == null ? tr('تاريخ النهاية') : formatEgyptDate(endDate!), style: const TextStyle(fontSize: 11)),
                       ),
                     ),
                   ],
@@ -621,7 +855,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('إلغاء'))),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
               onPressed: () {
@@ -637,9 +871,9 @@ class _VendorDashboardState extends State<VendorDashboard> {
                   endDate: endDate,
                 );
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تجهيز وتفعيل العرض بنجاح!')));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('تم تجهيز وتفعيل العرض بنجاح!'))));
               },
-              child: const Text('تأكيد العرض'),
+              child: Text(tr('تأكيد العرض')),
             ),
           ],
         ),
@@ -653,17 +887,18 @@ class _VendorDashboardState extends State<VendorDashboard> {
     final ordersCount = appState.vendorOrdersCount;
     final topItems = appState.vendorTopItems.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     final topClients = appState.vendorTopClients.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final myOffers = appState.products.where((p) => p.isOffer).toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('تقارير وأداء المبيعات والعروض', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        Text(tr('تقارير وأداء المبيعات والعروض'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         const SizedBox(height: 14),
         Row(
           children: [
-            Expanded(child: _reportCard('إجمالي المبيعات المستحقة', currency(totalSales), Icons.monetization_on_outlined, AppColors.brand)),
+            Expanded(child: _reportCard(tr('إجمالي المبيعات المستحقة'), currency(totalSales), Icons.monetization_on_outlined, AppColors.brand)),
             const SizedBox(width: 12),
-            Expanded(child: _reportCard('عدد الطلبات الواردة', '$ordersCount طلب', Icons.local_shipping_outlined, Colors.blue)),
+            Expanded(child: _reportCard(tr('عدد الطلبات الواردة'), trArgs('{n} طلب', {'n': ordersCount}), Icons.local_shipping_outlined, Colors.blue)),
           ],
         ),
         const SizedBox(height: 18),
@@ -675,26 +910,76 @@ class _VendorDashboardState extends State<VendorDashboard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.trending_up, color: AppColors.brand, size: 18),
-                  SizedBox(width: 8),
-                  Text('الأصناف الأكثر مبيعاً من منتجاتك', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const Icon(Icons.trending_up, color: AppColors.brand, size: 18),
+                  const SizedBox(width: 8),
+                  Text(tr('الأصناف الأكثر مبيعاً من منتجاتك'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 ],
               ),
               const Divider(height: 16),
               if (topItems.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Text('لا توجد مبيعات مسجلة حتى الآن', style: TextStyle(fontSize: 12, color: AppColors.inkSoft)),
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(tr('لا توجد مبيعات مسجلة حتى الآن'), style: const TextStyle(fontSize: 12, color: AppColors.inkSoft)),
                 )
               else
                 ...topItems.take(5).map((it) => ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                       title: Text(it.key, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      trailing: Text('${it.value} وحدة مباعة', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.brandDeep)),
+                      trailing: Text(trArgs('{n} وحدة مباعة', {'n': it.value}), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.brandDeep)),
                     )),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // أداء العروض (المباع مقابل المتبقي لكل عرض)
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.line)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.local_offer, color: AppColors.amber, size: 18),
+                  const SizedBox(width: 8),
+                  Text(tr('أداء العروض'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                ],
+              ),
+              const Divider(height: 16),
+              if (myOffers.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(tr('لا توجد عروض حالياً'), style: const TextStyle(fontSize: 12, color: AppColors.inkSoft)),
+                )
+              else
+                ...myOffers.map((offer) {
+                  final sold = (offer.offerTotalQty - offer.offerRemainingQty).clamp(0, offer.offerTotalQty);
+                  final pct = offer.offerTotalQty > 0 ? sold / offer.offerTotalQty : 0.0;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(child: Text(offer.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                            Text('${tr('بيع')}: $sold / ${offer.offerTotalQty}', style: const TextStyle(fontSize: 11, color: AppColors.inkSoft, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(value: pct, color: AppColors.amber, backgroundColor: Colors.grey.shade200, minHeight: 6),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
             ],
           ),
         ),
@@ -707,18 +992,18 @@ class _VendorDashboardState extends State<VendorDashboard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.people_outline, color: AppColors.brand, size: 18),
-                  SizedBox(width: 8),
-                  Text('العملاء الأكثر شراءً من متجرك', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const Icon(Icons.people_outline, color: AppColors.brand, size: 18),
+                  const SizedBox(width: 8),
+                  Text(tr('العملاء الأكثر شراءً من متجرك'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 ],
               ),
               const Divider(height: 16),
               if (topClients.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Text('لا يوجد طلبات عملاء حتى الآن', style: TextStyle(fontSize: 12, color: AppColors.inkSoft)),
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(tr('لا يوجد طلبات عملاء حتى الآن'), style: const TextStyle(fontSize: 12, color: AppColors.inkSoft)),
                 )
               else
                 ...topClients.take(5).map((c) => ListTile(

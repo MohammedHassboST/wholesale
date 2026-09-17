@@ -1,79 +1,104 @@
-// lib/services/supabase_cloud_service.dart
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/product_entity.dart';
 import '../../domain/entities/order_entity.dart';
+import '../../domain/entities/user_entity.dart';
 
 class SupabaseCloudService {
+  SupabaseCloudService();
   final SupabaseClient _supabase = Supabase.instance.client;
 
   // ===========================================================================
   // 🔥 1. PRODUCTS - المنتجات
   // ===========================================================================
 
-  /// Stream: جلب منتجات مورد معين (لحظي)
   Stream<List<ProductEntity>> getVendorProductsStream(String vendorId) {
-    print('🔍 [Products] Stream للمورد: $vendorId');
+    debugPrint('🔍 [Products] Stream للمورد: $vendorId');
     return _supabase
         .from('products')
         .stream(primaryKey: ['id'])
         .eq('vendor_id', vendorId)
         .map((maps) {
-      print('📦 [Products] تم استلام ${maps.length} منتج للمورد');
+      debugPrint('📦 [Products] تم استلام ${maps.length} منتج للمورد');
       return maps.map((m) => ProductEntity.fromMap(m)).toList();
     });
   }
 
-  /// Stream: جلب جميع المنتجات (للعميل - لحظي)
   Stream<List<ProductEntity>> getAllProductsStream() {
-    print('🔍 [Products] Stream لجميع المنتجات (للعميل)');
+    debugPrint('🔍 [Products] Stream لجميع المنتجات (للعميل)');
     return _supabase
         .from('products')
         .stream(primaryKey: ['id'])
         .order('created_at', ascending: false)
         .map((maps) {
-      print('📦 [Products] تم استلام ${maps.length} منتج إجمالي');
+      debugPrint('📦 [Products] تم استلام ${maps.length} منتج إجمالي');
       return maps.map((m) => ProductEntity.fromMap(m)).toList();
     });
   }
 
-  /// إضافة منتج جديد أو تحديثه
-  Future<void> addProduct(ProductEntity product) async {
+  Future<void> rpcAddProduct(String vendorId, ProductEntity product) async {
     try {
-      print('➕ [Products] إضافة/تحديث منتج: ${product.name}');
-      await _supabase.from('products').upsert(product.toMap());
-      print('✅ [Products] تم العملية بنجاح');
+      debugPrint('➕ [Products-RPC] إضافة/تحديث منتج: ${product.name}');
+      final imageUrl = await _uploadLocalImageIfNeeded(product.imagePath);
+      final toSave = imageUrl == product.imagePath ? product : product.copyWith(imagePath: imageUrl);
+
+      final result = await _supabase.rpc('vendor_add_product', params: {
+        'p_vendor_id': vendorId,
+        'p_product': toSave.toMap(),
+      });
+      debugPrint('✅ [Products-RPC] تم العملية بنجاح: $result');
     } catch (e) {
-      print('❌ [Products] خطأ في العملية: $e');
+      debugPrint('❌ [Products-RPC] خطأ في العملية: $e');
       rethrow;
     }
   }
 
-  /// تعديل منتج
-  Future<void> updateProduct(String id, Map<String, dynamic> data) async {
+  Future<String?> _uploadLocalImageIfNeeded(String? path) async {
+    if (path == null || path.isEmpty || path.startsWith('http')) return path;
     try {
-      print('✏️ [Products] تعديل منتج: $id');
-      data['updated_at'] = DateTime.now().toIso8601String();
-      await _supabase.from('products').update(data).eq('id', id);
-      print('✅ [Products] تم التعديل بنجاح');
+      final file = File(path);
+      if (!await file.exists()) return null;
+      final ext = path.split('.').last.toLowerCase();
+      final safeExt = ['jpg', 'jpeg', 'png', 'webp'].contains(ext) ? ext : 'jpg';
+      final fileName = 'prod_${DateTime.now().millisecondsSinceEpoch}.$safeExt';
+      await _supabase.storage.from('product-images').upload(fileName, file);
+      return _supabase.storage.from('product-images').getPublicUrl(fileName);
     } catch (e) {
-      print('❌ [Products] خطأ في التعديل: $e');
+      debugPrint('⚠️ [Storage] تعذر رفع الصورة، سيتم الحفظ بدون صورة: $e');
+      return null;
+    }
+  }
+
+  Future<void> rpcUpdateProduct(String vendorId, String productId, Map<String, dynamic> patch) async {
+    try {
+      debugPrint('✏️ [Products-RPC] تعديل منتج: $productId');
+      await _supabase.rpc('vendor_update_product', params: {
+        'p_vendor_id': vendorId,
+        'p_product_id': productId,
+        'p_patch': patch,
+      });
+      debugPrint('✅ [Products-RPC] تم التعديل بنجاح');
+    } catch (e) {
+      debugPrint('❌ [Products-RPC] خطأ في التعديل: $e');
       rethrow;
     }
   }
 
-  /// حذف منتج
-  Future<void> deleteProduct(String id) async {
+  Future<void> rpcDeleteProduct(String vendorId, String productId) async {
     try {
-      print('🗑️ [Products] حذف منتج: $id');
-      await _supabase.from('products').delete().eq('id', id);
-      print('✅ [Products] تم الحذف بنجاح');
+      debugPrint('🗑️ [Products-RPC] حذف منتج: $productId');
+      await _supabase.rpc('vendor_delete_product', params: {
+        'p_vendor_id': vendorId,
+        'p_product_id': productId,
+      });
+      debugPrint('✅ [Products-RPC] تم الحذف بنجاح');
     } catch (e) {
-      print('❌ [Products] خطأ في الحذف: $e');
+      debugPrint('❌ [Products-RPC] خطأ في الحذف: $e');
       rethrow;
     }
   }
 
-  /// خصم كمية من عرض (Offer)
   Future<void> decrementOfferStock(String productId, int qty) async {
     try {
       final row = await _supabase
@@ -90,9 +115,9 @@ class SupabaseCloudService {
           .update({'offer_remaining_qty': newQty < 0 ? 0 : newQty})
           .eq('id', productId);
 
-      print('✅ [Products] تم خصم $qty من عرض $productId. المتبقي: $newQty');
+      debugPrint('✅ [Products] تم خصم $qty من عرض $productId. المتبقي: $newQty');
     } catch (e) {
-      print('❌ [Products] خطأ في خصم المخزون: $e');
+      debugPrint('❌ [Products] خطأ في خصم المخزون: $e');
       rethrow;
     }
   }
@@ -101,68 +126,89 @@ class SupabaseCloudService {
   // 🔥 2. ORDERS - الطلبات
   // ===========================================================================
 
-  /// Stream: طلبات مورد معين
   Stream<List<OrderEntity>> getVendorOrdersStream(String vendorId) {
     return _supabase
         .from('orders')
         .stream(primaryKey: ['id'])
         .eq('vendor_id', vendorId)
         .order('created_at', ascending: false)
-        .map((maps) => maps.map((m) => OrderEntity.fromMap(m)).toList());
+        .asyncMap((maps) => _enrichOrdersWithItems(maps));
   }
 
-  /// Stream: طلبات عميل معين
   Stream<List<OrderEntity>> getClientOrdersStream(String clientId) {
     return _supabase
         .from('orders')
         .stream(primaryKey: ['id'])
         .eq('client_id', clientId)
         .order('created_at', ascending: false)
-        .map((maps) => maps.map((m) => OrderEntity.fromMap(m)).toList());
+        .asyncMap((maps) => _enrichOrdersWithItems(maps));
   }
 
-  /// Stream: جميع الطلبات (للمدير)
   Stream<List<OrderEntity>> getAllOrdersStream() {
     return _supabase
         .from('orders')
         .stream(primaryKey: ['id'])
         .order('created_at', ascending: false)
-        .map((maps) => maps.map((m) => OrderEntity.fromMap(m)).toList());
+        .asyncMap((maps) => _enrichOrdersWithItems(maps));
   }
 
-  /// إضافة طلب
   Future<void> addOrder(OrderEntity order) async {
     try {
       await _supabase.from('orders').insert(order.toMap());
-      print('✅ [Orders] تم إضافة الطلب: ${order.id}');
     } catch (e) {
-      print('❌ [Orders] خطأ في الإضافة: $e');
       rethrow;
     }
   }
 
-  /// تعديل حالة طلب
   Future<void> updateOrderStatus(String orderId, String newStatus) async {
     try {
       await _supabase.from('orders').update({
         'status': newStatus,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', orderId);
-      print('✅ [Orders] تم تحديث حالة الطلب $orderId إلى $newStatus');
     } catch (e) {
-      print('❌ [Orders] خطأ في التحديث: $e');
       rethrow;
     }
   }
 
-  /// حذف طلب
-  Future<void> deleteOrder(String orderId) async {
+  Future<void> updateOrderItem(String orderId, String productId, int newQty) async {
     try {
-      await _supabase.from('orders').delete().eq('id', orderId);
-      print('✅ [Orders] تم حذف الطلب: $orderId');
+      await _supabase.rpc('update_order_item_atomic', params: {
+        'p_order_id': orderId,
+        'p_product_id': productId,
+        'p_new_qty': newQty,
+      });
     } catch (e) {
-      print('❌ [Orders] خطأ في الحذف: $e');
       rethrow;
+    }
+  }
+
+  Future<void> updateOrderInfo(String orderId, {String? name, String? phone, String? address}) async {
+    final data = <String, dynamic>{'updated_at': DateTime.now().toIso8601String()};
+    if (name != null) data['client_name'] = name;
+    if (phone != null) data['client_phone'] = phone;
+    if (address != null) data['client_address'] = address;
+    await _supabase.from('orders').update(data).eq('id', orderId);
+  }
+
+  Future<void> deleteOrder(String orderId) async {
+    await _supabase.from('orders').delete().eq('id', orderId);
+  }
+
+  Future<bool> placeOrdersAtomic(List<OrderEntity> orders) async {
+    if (orders.isEmpty) return true;
+    final payload = [
+      for (final o in orders)
+        {
+          ...o.toMap(),
+          'items': [for (final it in o.items) it.toMap()],
+        },
+    ];
+    try {
+      await _supabase.rpc('place_orders_atomic', params: {'p_orders': payload});
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 
@@ -170,7 +216,6 @@ class SupabaseCloudService {
   // 🔥 3. ORDER ITEMS - بنود الطلبات
   // ===========================================================================
 
-  /// Stream: بنود طلب معين
   Stream<List<Map<String, dynamic>>> getOrderItemsStream(String orderId) {
     return _supabase
         .from('order_items')
@@ -179,19 +224,11 @@ class SupabaseCloudService {
         .map((maps) => List<Map<String, dynamic>>.from(maps));
   }
 
-  /// إضافة بنود لطلب (دفعة واحدة)
   Future<void> addOrderItems(List<Map<String, dynamic>> items) async {
     if (items.isEmpty) return;
-    try {
-      await _supabase.from('order_items').insert(items);
-      print('✅ [OrderItems] تم إضافة ${items.length} بند');
-    } catch (e) {
-      print('❌ [OrderItems] خطأ في الإضافة: $e');
-      rethrow;
-    }
+    await _supabase.from('order_items').insert(items);
   }
 
-  /// حذف بند
   Future<void> deleteOrderItem(String itemId) async {
     await _supabase.from('order_items').delete().eq('id', itemId);
   }
@@ -217,37 +254,42 @@ class SupabaseCloudService {
   }
 
   Future<Map<String, dynamic>?> getProfileByPhone(String phone) async {
-    final result = await _supabase
+    return await _supabase
         .from('profiles')
         .select()
         .eq('phone', phone)
         .maybeSingle();
-    return result;
+  }
+
+  Stream<UserEntity?> getMyProfileStream(String userId) {
+    return _supabase
+        .from('profiles')
+        .stream(primaryKey: ['id'])
+        .eq('id', userId)
+        .map((maps) => maps.isEmpty ? null : UserEntity.fromMap(maps.first));
   }
 
   Future<void> addProfile(Map<String, dynamic> data) async {
-    try {
-      await _supabase.from('profiles').upsert(data);
-      print('✅ [Profiles] تم إضافة/تحديث الحساب: ${data['id']}');
-    } catch (e) {
-      print('❌ [Profiles] خطأ في العملية: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> updateProfile(String id, Map<String, dynamic> data) async {
-    try {
-      data['updated_at'] = DateTime.now().toIso8601String();
-      await _supabase.from('profiles').update(data).eq('id', id);
-      print('✅ [Profiles] تم تحديث الحساب: $id');
-    } catch (e) {
-      print('❌ [Profiles] خطأ في التحديث: $e');
-      rethrow;
-    }
+    await _supabase.from('profiles').upsert(data);
   }
 
   Future<void> deleteProfile(String id) async {
     await _supabase.from('profiles').delete().eq('id', id);
+  }
+
+  Future<void> rpcAddVendor(String adminId, Map<String, dynamic> vendorData) async {
+    await _supabase.rpc('admin_add_vendor', params: {
+      'p_admin_id': adminId,
+      'p_vendor': vendorData,
+    });
+  }
+
+  Future<void> rpcSetVendorStatus(String adminId, String vendorId, String status) async {
+    await _supabase.rpc('admin_set_vendor_status', params: {
+      'p_admin_id': adminId,
+      'p_vendor_id': vendorId,
+      'p_status': status,
+    });
   }
 
   // ===========================================================================
@@ -262,16 +304,28 @@ class SupabaseCloudService {
         .map((maps) => List<Map<String, dynamic>>.from(maps));
   }
 
-  Future<void> addCategory(Map<String, dynamic> data) async {
-    await _supabase.from('categories').insert(data);
+  Future<void> rpcAddCategory(String adminId, String name, {String? icon}) async {
+    await _supabase.rpc('admin_add_category', params: {
+      'p_admin_id': adminId,
+      'p_name': name,
+      'p_icon': icon ?? 'category',
+    });
   }
 
-  Future<void> updateCategory(String id, Map<String, dynamic> data) async {
-    await _supabase.from('categories').update(data).eq('id', id);
+  Future<void> rpcUpdateCategory(String adminId, String categoryId, String name, {String? icon}) async {
+    await _supabase.rpc('admin_update_category', params: {
+      'p_admin_id': adminId,
+      'p_category_id': categoryId,
+      'p_name': name,
+      'p_icon': icon ?? 'category',
+    });
   }
 
-  Future<void> deleteCategory(String id) async {
-    await _supabase.from('categories').delete().eq('id', id);
+  Future<void> rpcDeleteCategory(String adminId, String categoryId) async {
+    await _supabase.rpc('admin_delete_category', params: {
+      'p_admin_id': adminId,
+      'p_category_id': categoryId,
+    });
   }
 
   // ===========================================================================
@@ -317,5 +371,90 @@ class SupabaseCloudService {
       'data': data,
       'updated_at': DateTime.now().toIso8601String(),
     });
+  }
+
+  // ===========================================================================
+  // 🔥 8. HELPERS
+  // ===========================================================================
+
+  Future<List<OrderEntity>> _enrichOrdersWithItems(List<Map<String, dynamic>> maps) async {
+    if (maps.isEmpty) return [];
+    final orders = maps.map((m) => OrderEntity.fromMap(m)).toList();
+    try {
+      final orderIds = orders.map((o) => o.id).toList();
+      final itemsRows = List<Map<String, dynamic>>.from(
+        await _supabase.from('order_items').select().inFilter('order_id', orderIds),
+      );
+      if (itemsRows.isEmpty) return orders;
+
+      final productIds = itemsRows
+          .map((r) => r['product_id']?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toSet()
+          .toList();
+      final productsById = <String, ProductEntity>{};
+      if (productIds.isNotEmpty) {
+        final prodRows = List<Map<String, dynamic>>.from(
+          await _supabase.from('products').select().inFilter('id', productIds),
+        );
+        for (final r in prodRows) {
+          final p = ProductEntity.fromMap(r);
+          productsById[p.id] = p;
+        }
+      }
+
+      final itemsByOrder = <String, List<OrderItemEntity>>{};
+      for (final r in itemsRows) {
+        final oid = r['order_id']?.toString() ?? '';
+        final pid = r['product_id']?.toString() ?? '';
+        final qty = (r['qty'] as num?)?.toInt() ?? 1;
+        final unitPrice = (r['unit_price'] as num?)?.toDouble() ?? 0.0;
+        final product = productsById[pid] ??
+            ProductEntity(id: pid, vendorId: '', name: 'صنف محذوف', category: '', price: unitPrice, unit: '');
+        itemsByOrder.putIfAbsent(oid, () => []).add(
+              OrderItemEntity(product: product, qty: qty, unitPrice: unitPrice),
+            );
+      }
+
+      return [
+        for (final o in orders)
+          OrderEntity(
+            id: o.id,
+            parentOrderId: o.parentOrderId,
+            vendorId: o.vendorId,
+            clientId: o.clientId,
+            clientName: o.clientName,
+            clientPhone: o.clientPhone,
+            clientAddress: o.clientAddress,
+            items: itemsByOrder[o.id] ?? [],
+            total: o.total,
+            savings: o.savings,
+            createdAt: o.createdAt,
+            status: o.status,
+            paymentMethod: o.paymentMethod,
+          ),
+      ];
+    } catch (e) {
+      debugPrint('⚠️ [Orders] تعذر إرفاق بنود الطلبات، سيتم عرضها بدون تفاصيل: $e');
+      return orders;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchCategories() async {
+    final rows = await _supabase.from('categories').select().order('name');
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<void> deleteCategoryByName(String name) async {
+    await _supabase.from('categories').delete().eq('name', name);
+  }
+
+  Stream<List<Map<String, dynamic>>> getAllNotificationsStream() {
+    return _supabase
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
+        .limit(100)
+        .map((maps) => List<Map<String, dynamic>>.from(maps));
   }
 }

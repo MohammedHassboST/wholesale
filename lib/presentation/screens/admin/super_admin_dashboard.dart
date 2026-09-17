@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../state/app_state.dart';
 import '../../../core/constants/constants.dart';
 import '../../../domain/entities/user_entity.dart';
+import '../retailer/notifications_page.dart';
+import '../../../core/l10n/app_strings.dart';
+import '../../../domain/entities/order_entity.dart';
 
 class SuperAdminDashboard extends StatefulWidget {
   const SuperAdminDashboard({super.key});
@@ -18,23 +21,23 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.logout, color: AppColors.danger),
-            SizedBox(width: 8),
-            Text('تسجيل الخروج', style: TextStyle(fontWeight: FontWeight.w900)),
+            const Icon(Icons.logout, color: AppColors.danger),
+            const SizedBox(width: 8),
+            Text(tr('تسجيل الخروج'), style: const TextStyle(fontWeight: FontWeight.w900)),
           ],
         ),
-        content: const Text('هل تريد الخروج من لوحة تحكم مدير المنصة؟'),
+        content: Text(tr('هل تريد الخروج من لوحة تحكم مدير المنصة؟')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('إلغاء'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);
               appState.logout();
             },
-            child: const Text('نعم، الخروج', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(tr('نعم، الخروج'), style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -49,31 +52,37 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
         return Scaffold(
           backgroundColor: AppColors.paper,
           appBar: AppBar(
-            title: const Text('لوحة إدارة المنصة (Super Admin)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            title: Text(tr('لوحة إدارة المنصة (Super Admin)'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
             backgroundColor: AppColors.brandDeep,
             foregroundColor: Colors.white,
             elevation: 0,
             actions: [
               IconButton(
                 icon: const Icon(Icons.language),
-                tooltip: 'تغيير اللغة',
+                tooltip: tr('تغيير اللغة'),
                 onPressed: () => appState.toggleLocale(),
               ),
               IconButton(
                 icon: const Icon(Icons.logout),
-                tooltip: 'تسجيل الخروج',
+                tooltip: tr('تسجيل الخروج'),
                 onPressed: () => _confirmLogout(context),
               ),
             ],
           ),
-          body: IndexedStack(
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1100),
+              child: IndexedStack(
             index: _currentIndex,
             children: [
               _buildOverviewTab(),
               _buildVendorsManagementTab(),
               _buildAllOrdersTab(),
               _buildCategoriesManagementTab(),
+              const NotificationsPage(),
             ],
+          ),
+          ),
           ),
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _currentIndex,
@@ -84,11 +93,33 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
             type: BottomNavigationBarType.fixed,
             selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             unselectedLabelStyle: const TextStyle(fontSize: 11),
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), activeIcon: Icon(Icons.analytics), label: 'التقارير الشاملة'),
-              BottomNavigationBarItem(icon: Icon(Icons.storefront_outlined), activeIcon: Icon(Icons.storefront), label: 'إدارة الموردين'),
-              BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long), label: 'كافة الطلبات'),
-              BottomNavigationBarItem(icon: Icon(Icons.category_outlined), activeIcon: Icon(Icons.category), label: 'التصنيفات'),
+            items: [
+              BottomNavigationBarItem(icon: const Icon(Icons.analytics_outlined), activeIcon: const Icon(Icons.analytics), label: tr('التقارير الشاملة')),
+              BottomNavigationBarItem(icon: const Icon(Icons.storefront_outlined), activeIcon: const Icon(Icons.storefront), label: tr('إدارة الموردين')),
+              BottomNavigationBarItem(icon: const Icon(Icons.receipt_long_outlined), activeIcon: const Icon(Icons.receipt_long), label: tr('كافة الطلبات')),
+              BottomNavigationBarItem(icon: const Icon(Icons.category_outlined), activeIcon: const Icon(Icons.category), label: tr('التصنيفات')),
+              BottomNavigationBarItem(
+                icon: Stack(
+                  children: [
+                    const Icon(Icons.notifications_outlined),
+                    if (appState.unreadNotificationsCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(color: AppColors.danger, shape: BoxShape.circle),
+                          child: Text(
+                            '${appState.unreadNotificationsCount}',
+                            style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                activeIcon: const Icon(Icons.notifications),
+                label: tr('الإشعارات'),
+              ),
             ],
           ),
         );
@@ -115,35 +146,35 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('نظرة عامة وتقارير المبيعات الشاملة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+        Text(tr('نظرة عامة وتقارير المبيعات الشاملة'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
         const SizedBox(height: 14),
 
         // بطاقات المؤشرات الأساسية
         Row(
           children: [
-            Expanded(child: _metricCard('إجمالي المبيعات', currency(totalRevenue), Icons.payments_outlined, AppColors.brand)),
+            Expanded(child: _metricCard(tr('إجمالي المبيعات'), currency(totalRevenue), Icons.payments_outlined, AppColors.brand)),
             const SizedBox(width: 12),
-            Expanded(child: _metricCard('إجمالي الطلبات', '$totalOrdersCount طلب', Icons.shopping_bag_outlined, Colors.blue)),
+            Expanded(child: _metricCard(tr('إجمالي الطلبات'), trArgs('{n} طلب', {'n': totalOrdersCount}), Icons.shopping_bag_outlined, Colors.blue)),
           ],
         ),
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _metricCard('الموردين المعتمدين', '$activeVendors مورد نشط', Icons.store, AppColors.purple)),
+            Expanded(child: _metricCard(tr('الموردين المعتمدين'), trArgs('{n} مورد نشط', {'n': activeVendors}), Icons.store, AppColors.purple)),
             const SizedBox(width: 12),
-            Expanded(child: _metricCard('طلبات انضمام الموردين', '${totalVendorsCount - activeVendors} بانتظار الموافقة', Icons.hourglass_top, AppColors.amber)),
+            Expanded(child: _metricCard(tr('طلبات انضمام الموردين'), trArgs('{n} بانتظار الموافقة', {'n': totalVendorsCount - activeVendors}), Icons.hourglass_top, AppColors.amber)),
           ],
         ),
         const SizedBox(height: 20),
 
         // قائمة أفضل الموردين وأكثرهم بيعاً
         _buildReportSection(
-          title: 'أفضل الموردين وأكثرهم مبيعاً',
+          title: tr('أفضل الموردين وأكثرهم مبيعاً'),
           icon: Icons.leaderboard,
           child: topVendors.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Text('لا توجد مبيعات مسجلة للموردين حتى الآن', style: TextStyle(color: AppColors.inkSoft)),
+              ? Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(tr('لا توجد مبيعات مسجلة للموردين حتى الآن'), style: const TextStyle(color: AppColors.inkSoft)),
                 )
               : Column(
                   children: topVendors.take(5).map((entry) {
@@ -164,12 +195,12 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
 
         // قائمة أكثر الأصناف مبيعاً
         _buildReportSection(
-          title: 'الأصناف الأكثر طلباً ومبيعاً',
+          title: tr('الأصناف الأكثر طلباً ومبيعاً'),
           icon: Icons.inventory_2_outlined,
           child: topProducts.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Text('لم يتم بيع أي منتجات بعد', style: TextStyle(color: AppColors.inkSoft)),
+              ? Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(tr('لم يتم بيع أي منتجات بعد'), style: const TextStyle(color: AppColors.inkSoft)),
                 )
               : Column(
                   children: topProducts.take(5).map((entry) {
@@ -181,7 +212,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                         child: Icon(Icons.star, color: AppColors.amber, size: 18),
                       ),
                       title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      trailing: Text('${entry.value} وحدة مباعة', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.ink)),
+                      trailing: Text(trArgs('{n} وحدة مباعة', {'n': entry.value}), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.ink)),
                     );
                   }).toList(),
                 ),
@@ -190,12 +221,12 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
 
         // قائمة أفضل العملاء (الأكثر شراءً)
         _buildReportSection(
-          title: 'أفضل العملاء (الأعلى شراءً في المنصة)',
+          title: tr('أفضل العملاء (الأعلى شراءً في المنصة)'),
           icon: Icons.verified_user_outlined,
           child: topClients.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Text('لا يوجد طلبات عملاء مسجلة بعد', style: TextStyle(color: AppColors.inkSoft)),
+              ? Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(tr('لا يوجد طلبات عملاء مسجلة بعد'), style: const TextStyle(color: AppColors.inkSoft)),
                 )
               : Column(
                   children: topClients.take(5).map((entry) {
@@ -207,7 +238,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                         child: const Icon(Icons.person, color: AppColors.brand, size: 18),
                       ),
                       title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: const Text('عميل معتمد', style: TextStyle(fontSize: 10, color: AppColors.inkSoft)),
+                      subtitle: Text(tr('عميل معتمد'), style: const TextStyle(fontSize: 10, color: AppColors.inkSoft)),
                       trailing: Text(currency(entry.value), style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.brand)),
                     );
                   }).toList(),
@@ -226,17 +257,17 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.settings_suggest, color: AppColors.brand),
-                  SizedBox(width: 8),
-                  Text('إدارة وتهيئة النظام (للمدير حصرياً)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const Icon(Icons.settings_suggest, color: AppColors.brand),
+                  const SizedBox(width: 8),
+                  Text(tr('إدارة وتهيئة النظام (للمدير حصرياً)'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 ],
               ),
               const SizedBox(height: 6),
-              const Text(
-                'يمكنك تهيئة وإعادة ضبط البيانات الحسابية الأساسية والتصنيفات والموردين الافتراضيين في أي وقت.',
-                style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
+              Text(
+                tr('يمكنك تهيئة وإعادة ضبط البيانات الحسابية الأساسية والتصنيفات والموردين الافتراضيين في أي وقت.'),
+                style: const TextStyle(fontSize: 12, color: AppColors.inkSoft),
               ),
               const SizedBox(height: 14),
               SizedBox(
@@ -251,11 +282,11 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                     final messenger = ScaffoldMessenger.of(context);
                     await appState.seedInitialData();
                     messenger.showSnackBar(
-                      const SnackBar(content: Text('تمت تهيئة البيانات الحسابية بنجاح!')),
+                      SnackBar(content: Text(tr('تمت تهيئة البيانات الحسابية بنجاح!'))),
                     );
                   },
                   icon: const Icon(Icons.cloud_sync),
-                  label: const Text('تهيئة البيانات الحسابية الأساسية', style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: Text(tr('تهيئة البيانات الحسابية الأساسية'), style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -326,12 +357,12 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('إدارة واعتماد موردي المنصة', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              Text(tr('إدارة واعتماد موردي المنصة'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
                 onPressed: () => _showAddVendorDialog(context),
                 icon: const Icon(Icons.person_add, size: 16),
-                label: const Text('إضافة مورد جديد', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: Text(tr('إضافة مورد جديد'), style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -341,7 +372,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(16)),
-              child: const Center(child: Text('لا يوجد موردين مسجلين بعد. يمكنك إضافة مورد يدوياً أو انتظار تسجيل الموردين.')),
+              child: Center(child: Text(tr('لا يوجد موردين مسجلين بعد. يمكنك إضافة مورد يدوياً أو انتظار تسجيل الموردين.'))),
             )
           else
             ...vendors.map((vendor) {
@@ -350,19 +381,19 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
               switch (vendor.status) {
                 case 'active':
                   statusColor = Colors.green;
-                  statusText = 'نشط ومعتمد';
+                  statusText = tr('نشط ومعتمد');
                   break;
                 case 'inactive':
                   statusColor = Colors.grey;
-                  statusText = 'غير نشط (معطل)';
+                  statusText = tr('غير نشط (معطل)');
                   break;
                 case 'rejected':
                   statusColor = AppColors.danger;
-                  statusText = 'مرفوض';
+                  statusText = tr('مرفوض');
                   break;
                 default:
                   statusColor = AppColors.amber;
-                  statusText = 'بانتظار الموافقة';
+                  statusText = tr('بانتظار الموافقة');
               }
 
               return Container(
@@ -388,10 +419,10 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(vendor.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text('${vendor.phone} - ${vendor.businessActivity ?? vendor.shopName ?? "نشاط عام"}',
+                              Text(trArgs('{p} - {a}', {'p': vendor.phone, 'a': vendor.businessActivity ?? vendor.shopName ?? tr('نشاط عام')}),
                                   style: const TextStyle(fontSize: 11, color: AppColors.inkSoft)),
                               if (vendor.address != null)
-                                Text('المقر: ${vendor.address}', style: const TextStyle(fontSize: 10, color: AppColors.inkSoft)),
+                                Text(trArgs('المقر: {a}', {'a': vendor.address}), style: const TextStyle(fontSize: 10, color: AppColors.inkSoft)),
                             ],
                           ),
                         ),
@@ -414,14 +445,14 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                             style: OutlinedButton.styleFrom(foregroundColor: Colors.green, side: const BorderSide(color: Colors.green)),
                             onPressed: () => appState.updateVendorStatus(vendor.id, 'active'),
                             icon: const Icon(Icons.check, size: 16),
-                            label: const Text('قبول وتفعيل'),
+                            label: Text(tr('قبول وتفعيل')),
                           ),
                           const SizedBox(width: 8),
                           OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger, side: const BorderSide(color: AppColors.danger)),
                             onPressed: () => appState.updateVendorStatus(vendor.id, 'rejected'),
                             icon: const Icon(Icons.close, size: 16),
-                            label: const Text('رفض'),
+                            label: Text(tr('رفض')),
                           ),
                         ] else ...[
                           PopupMenuButton<String>(
@@ -433,11 +464,11 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                               }
                             },
                             itemBuilder: (_) => [
-                              const PopupMenuItem(value: 'active', child: Text('تغيير الحالة إلى: نشط')),
-                              const PopupMenuItem(value: 'inactive', child: Text('تغيير الحالة إلى: غير نشط')),
-                              const PopupMenuItem(value: 'rejected', child: Text('تغيير الحالة إلى: مرفوض')),
+                              PopupMenuItem(value: 'active', child: Text(tr('تغيير الحالة إلى: نشط'))),
+                              PopupMenuItem(value: 'inactive', child: Text(tr('تغيير الحالة إلى: غير نشط'))),
+                              PopupMenuItem(value: 'rejected', child: Text(tr('تغيير الحالة إلى: مرفوض'))),
                               const PopupMenuDivider(),
-                              const PopupMenuItem(value: 'delete', child: Text('حذف المورد نهائياً', style: TextStyle(color: AppColors.danger))),
+                              PopupMenuItem(value: 'delete', child: Text(tr('حذف المورد نهائياً'), style: const TextStyle(color: AppColors.danger))),
                             ],
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -446,11 +477,11 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: AppColors.line),
                               ),
-                              child: const Row(
+                              child: Row(
                                 children: [
-                                  Icon(Icons.tune, size: 16, color: AppColors.inkSoft),
-                                  SizedBox(width: 4),
-                                  Text('تغيير الحالة / إجراءات', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                  const Icon(Icons.tune, size: 16, color: AppColors.inkSoft),
+                                  const SizedBox(width: 4),
+                                  Text(tr('تغيير الحالة / إجراءات'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             ),
@@ -477,23 +508,23 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('إضافة مورد جديد يدوياً', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(tr('إضافة مورد جديد يدوياً'), style: const TextStyle(fontWeight: FontWeight.bold)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم المورد ثلاثي')),
+              TextField(controller: nameCtrl, decoration: InputDecoration(labelText: tr('اسم المورد ثلاثي'))),
               const SizedBox(height: 10),
-              TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone),
+              TextField(controller: phoneCtrl, decoration: InputDecoration(labelText: tr('رقم الهاتف')), keyboardType: TextInputType.phone),
               const SizedBox(height: 10),
-              TextField(controller: addressCtrl, decoration: const InputDecoration(labelText: 'العنوان التفصيلي')),
+              TextField(controller: addressCtrl, decoration: InputDecoration(labelText: tr('العنوان التفصيلي'))),
               const SizedBox(height: 10),
-              TextField(controller: activityCtrl, decoration: const InputDecoration(labelText: 'النشاط التجاري')),
+              TextField(controller: activityCtrl, decoration: InputDecoration(labelText: tr('النشاط التجاري'))),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('إلغاء'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
             onPressed: () {
@@ -509,9 +540,9 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
               );
               appState.addVendorByAdmin(vendor);
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إضافة المورد وتفعيله بنجاح!')));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('تم إضافة المورد وتفعيله بنجاح!'))));
             },
-            child: const Text('إضافة وتفعيل'),
+            child: Text(tr('إضافة وتفعيل')),
           ),
         ],
       ),
@@ -525,7 +556,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
     return Scaffold(
       backgroundColor: AppColors.paper,
       body: allOrders.isEmpty
-          ? const Center(child: Text('لا توجد أي طلبات مسجلة في المنصة بعد'))
+          ? Center(child: Text(tr('لا توجد أي طلبات مسجلة في المنصة بعد')))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: allOrders.length,
@@ -545,13 +576,13 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('طلب: ${o.id}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                          Text(trArgs('طلب: {id}', {'id': o.id}), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
                           DropdownButton<String>(
                             value: ['قيد المراجعة', 'مؤكد', 'جاري التجهيز', 'في الطريق', 'تم التسليم', 'مرفوض', 'ملغي'].contains(o.status)
                                 ? o.status
                                 : 'قيد المراجعة',
                             items: ['قيد المراجعة', 'مؤكد', 'جاري التجهيز', 'في الطريق', 'تم التسليم', 'مرفوض', 'ملغي']
-                                .map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12)))).toList(),
+                                .map((s) => DropdownMenuItem(value: s, child: Text(orderStatusLabel(s), style: const TextStyle(fontSize: 12)))).toList(),
                             onChanged: (newStatus) {
                               if (newStatus != null) {
                                 appState.updateOrderStatus(o.id, newStatus);
@@ -561,12 +592,12 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text('العميل: ${o.clientName} (${o.clientPhone}) | المورد: ${o.vendorId}',
+                      Text(trArgs('العميل: {n} ({p}) | المورد: {v}', {'n': o.clientName, 'p': o.clientPhone, 'v': o.vendorId}),
                           style: const TextStyle(fontSize: 11, color: AppColors.inkSoft)),
                       if (o.clientAddress != null)
-                        Text('العنوان: ${o.clientAddress}', style: const TextStyle(fontSize: 10, color: AppColors.inkSoft)),
+                        Text(trArgs('العنوان: {a}', {'a': o.clientAddress}), style: const TextStyle(fontSize: 10, color: AppColors.inkSoft)),
                       const Divider(height: 12),
-                      ...o.items.map((it) => Text('• ${it.product.name} × ${it.qty} (${currency(it.unitPrice)})', style: const TextStyle(fontSize: 12))),
+                      ...o.items.map((it) => Text(trArgs('• {n} × {q} ({p})', {'n': it.product.name, 'q': it.qty, 'p': currency(it.unitPrice)}), style: const TextStyle(fontSize: 12))),
                       const Divider(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -574,29 +605,34 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('الإجمالي: ${currency(o.total)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.brandDeep)),
-                              Text('طريقة الدفع: ${o.paymentMethod}', style: const TextStyle(fontSize: 10, color: AppColors.inkSoft)),
+                              Text(trArgs('الإجمالي: {t}', {'t': currency(o.total)}), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.brandDeep)),
+                              Text(trArgs('طريقة الدفع: {m}', {'m': o.paymentMethod}), style: const TextStyle(fontSize: 10, color: AppColors.inkSoft)),
                             ],
                           ),
                           Row(
                             children: [
                               IconButton(
+                                icon: const Icon(Icons.edit_outlined, color: AppColors.brand, size: 20),
+                                tooltip: tr('تعديل الطلب'),
+                                onPressed: () => _showEditOrderDialog(context, o),
+                              ),
+                              IconButton(
                                 icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
-                                tooltip: 'حذف الطلب',
+                                tooltip: tr('حذف الطلب'),
                                 onPressed: () {
                                   showDialog(
                                     context: context,
                                     builder: (ctx) => AlertDialog(
-                                      title: const Text('حذف الطلب'),
-                                      content: Text('هل أنت متأكد من حذف الطلب ${o.id} نهائياً؟'),
+                                      title: Text(tr('حذف الطلب')),
+                                      content: Text(trArgs('هل أنت متأكد من حذف الطلب {id} نهائياً؟', {'id': o.id})),
                                       actions: [
-                                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                                        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('إلغاء'))),
                                         TextButton(
                                           onPressed: () {
                                             Navigator.pop(ctx);
                                             appState.deleteOrder(o.id);
                                           },
-                                          child: const Text('حذف', style: TextStyle(color: AppColors.danger)),
+                                          child: Text(tr('حذف'), style: const TextStyle(color: AppColors.danger)),
                                         ),
                                       ],
                                     ),
@@ -612,6 +648,85 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                 );
               },
             ),
+    );
+  }
+
+  void _showEditOrderDialog(BuildContext context, OrderEntity o) {
+    final nameCtrl = TextEditingController(text: o.clientName);
+    final phoneCtrl = TextEditingController(text: o.clientPhone);
+    final addressCtrl = TextEditingController(text: o.clientAddress ?? '');
+    final qtyByProduct = {for (final it in o.items) it.product.id: it.qty};
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('${tr('تعديل الطلب')} ${o.id}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(tr('بيانات العميل'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 8),
+                TextField(controller: nameCtrl, decoration: InputDecoration(labelText: tr('اسم العميل'))),
+                const SizedBox(height: 8),
+                TextField(controller: phoneCtrl, decoration: InputDecoration(labelText: tr('هاتف العميل'))),
+                const SizedBox(height: 8),
+                TextField(controller: addressCtrl, decoration: InputDecoration(labelText: tr('العنوان'))),
+                const SizedBox(height: 16),
+                Text(tr('الأصناف والكميات (تصفير الكمية يحذف الصنف)'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 8),
+                ...o.items.map((it) {
+                  final q = qtyByProduct[it.product.id] ?? it.qty;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text('${it.product.name} (${currency(it.unitPrice)})', style: const TextStyle(fontSize: 12))),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline, size: 20, color: AppColors.danger),
+                          onPressed: q <= 0 ? null : () => setDialogState(() => qtyByProduct[it.product.id] = q - 1),
+                        ),
+                        Text('$q', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.brand),
+                          onPressed: () => setDialogState(() => qtyByProduct[it.product.id] = q + 1),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('إلغاء'))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(ctx);
+                try {
+                  await appState.editOrder(
+                    o.id,
+                    itemsQty: qtyByProduct,
+                    clientName: nameCtrl.text.trim(),
+                    clientPhone: phoneCtrl.text.trim(),
+                    clientAddress: addressCtrl.text.trim(),
+                  );
+                  navigator.pop();
+                  messenger.showSnackBar(SnackBar(content: Text(tr('تم حفظ تعديلات الطلب'))));
+                } catch (e) {
+                  messenger.showSnackBar(SnackBar(content: Text('${tr('تعذر الحفظ (راجع مخزون العروض)')}: $e'), backgroundColor: AppColors.danger));
+                }
+              },
+              child: Text(tr('حفظ التعديلات')),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -631,17 +746,17 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('إضافة تصنيف جديد للمنصة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(tr('إضافة تصنيف جديد للمنصة'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
                       child: TextField(
                         controller: catCtrl,
-                        decoration: const InputDecoration(
-                          hintText: 'اسم التصنيف الجديد...',
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: InputDecoration(
+                          hintText: tr('اسم التصنيف الجديد...'),
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         ),
                       ),
                     ),
@@ -652,10 +767,10 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                         if (catCtrl.text.trim().isNotEmpty) {
                           appState.addCategory(catCtrl.text.trim());
                           catCtrl.clear();
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إضافة التصنيف بنجاح')));
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('تم إضافة التصنيف بنجاح'))));
                         }
                       },
-                      child: const Text('إضافة'),
+                      child: Text(tr('إضافة')),
                     ),
                   ],
                 ),
@@ -663,7 +778,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text('التصنيفات المعتمدة حالياً', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+          Text(tr('التصنيفات المعتمدة حالياً'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
           const SizedBox(height: 10),
           ...categories.map((c) {
             return Container(
@@ -677,7 +792,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                     children: [
                       const Icon(Icons.folder_outlined, color: AppColors.brand, size: 20),
                       const SizedBox(width: 10),
-                      Text(c, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text(categoryLabel(c), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     ],
                   ),
                   if (c != 'الكل')

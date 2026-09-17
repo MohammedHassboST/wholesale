@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../common/widgets/cart_drawer.dart';
 import '../../state/app_state.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/l10n/app_strings.dart';
 import '../../common/widgets/product_card.dart';
 
 class StorePage extends StatefulWidget {
@@ -67,14 +68,14 @@ class _StorePageState extends State<StorePage> {
         return Scaffold(
           backgroundColor: AppColors.paper,
           appBar: AppBar(
-            title: const Text('سوق الجملة وفيد العروض المجمع', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+            title: Text(tr('سوق الجملة وفيد العروض المجمع'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
             backgroundColor: AppColors.brandDeep,
             foregroundColor: Colors.white,
             elevation: 0,
             actions: [
               IconButton(
                 icon: const Icon(Icons.language),
-                tooltip: 'تغيير اللغة',
+                tooltip: tr('تغيير اللغة'),
                 onPressed: () => appState.toggleLocale(),
               ),
               Stack(
@@ -82,7 +83,7 @@ class _StorePageState extends State<StorePage> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.shopping_bag_outlined),
-                    tooltip: 'سلة الشراء',
+                    tooltip: tr('سلة الشراء'),
                     onPressed: () => showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
@@ -119,7 +120,7 @@ class _StorePageState extends State<StorePage> {
                         controller: searchCtrl,
                         onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
-                          hintText: 'ابحث بالاسم، الصنف، السعر، أو الوحدة...',
+                          hintText: tr('ابحث بالاسم، الصنف، السعر، أو الوحدة...'),
                           hintStyle: TextStyle(fontSize: 12, color: AppColors.inkSoft.withValues(alpha: 0.6)),
                           prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.brand),
                           filled: true,
@@ -138,7 +139,7 @@ class _StorePageState extends State<StorePage> {
                         value: sortBy,
                         underline: const SizedBox(),
                         items: ['الافتراضي', 'الأقرب للنفاذ', 'الأحدث', 'السعر: الأقل', 'السعر: الأعلى']
-                            .map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)))).toList(),
+                            .map((s) => DropdownMenuItem(value: s, child: Text(sortLabel(s), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)))).toList(),
                         onChanged: (v) => setState(() => sortBy = v!),
                       ),
                     ),
@@ -151,7 +152,7 @@ class _StorePageState extends State<StorePage> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 child: Row(
                   children: [
-                    const Text('نوع البيع: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.inkSoft)),
+                    Text(tr('نوع البيع:'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.inkSoft)),
                     const SizedBox(width: 6),
                     _unitChip('الكل'),
                     const SizedBox(width: 6),
@@ -179,26 +180,24 @@ class _StorePageState extends State<StorePage> {
 
               // شريط التصنيفات
               SizedBox(
-                height: 38,
-                child: ListView.builder(
+                height: 40,
+                child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: appState.categories.length,
-                  itemBuilder: (context, i) {
-                    final cat = appState.categories[i];
+                  children: ['الكل', ...appState.categories.where((c) => c != 'الكل')].map((cat) {
                     final active = activeCategory == cat;
                     return Padding(
-                      padding: const EdgeInsets.only(left: 6),
-                      child: ChoiceChip(
-                        label: Text(cat, style: const TextStyle(fontSize: 12)),
+                      padding: const EdgeInsets.only(left: 8),
+                      child: FilterChip(
                         selected: active,
+                        label: Text(categoryLabel(cat), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                         selectedColor: AppColors.brand,
                         backgroundColor: AppColors.card,
-                        labelStyle: TextStyle(color: active ? Colors.white : AppColors.inkSoft, fontWeight: FontWeight.bold),
+                        labelStyle: TextStyle(color: active ? Colors.white : AppColors.inkSoft),
                         onSelected: (_) => setState(() => activeCategory = cat),
                       ),
                     );
-                  },
+                  }).toList(),
                 ),
               ),
               const SizedBox(height: 8),
@@ -206,13 +205,13 @@ class _StorePageState extends State<StorePage> {
               // شبكة الأصناف والعروض
               Expanded(
                 child: filtered.isEmpty
-                    ? const Center(
-                        child: Text('لا توجد عروض أو أصناف مطابقة للبحث أو الفلتر المختار', style: TextStyle(color: AppColors.inkSoft)),
+                    ? Center(
+                        child: Text(tr('لا توجد عروض أو أصناف مطابقة للبحث أو الفلتر المختار'), style: const TextStyle(color: AppColors.inkSoft)),
                       )
                     : GridView.builder(
                         padding: const EdgeInsets.all(12),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: _gridCount(context),
                           childAspectRatio: 0.68,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 10,
@@ -230,6 +229,14 @@ class _StorePageState extends State<StorePage> {
     );
   }
 
+  int _gridCount(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    if (w >= 1400) return 5;
+    if (w >= 1100) return 4;
+    if (w >= 800) return 3;
+    return 2;
+  }
+
   Widget _unitChip(String label) {
     final active = unitFilter == label;
     return GestureDetector(
@@ -242,7 +249,7 @@ class _StorePageState extends State<StorePage> {
           border: Border.all(color: active ? AppColors.brand : AppColors.line),
         ),
         child: Text(
-          label,
+          saleTypeLabel(label),
           style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: active ? Colors.white : AppColors.inkSoft),
         ),
       ),
@@ -254,7 +261,7 @@ class _StorePageState extends State<StorePage> {
       padding: const EdgeInsets.only(left: 6),
       child: FilterChip(
         selected: isSelected,
-        label: Text(label, style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : AppColors.inkSoft, fontWeight: FontWeight.bold)),
+        label: Text(vendorId == null ? tr('كل الموردين') : label, style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : AppColors.inkSoft, fontWeight: FontWeight.bold)),
         selectedColor: AppColors.brandDeep,
         backgroundColor: AppColors.card,
         onSelected: (_) => setState(() => selectedVendorFilter = vendorId),

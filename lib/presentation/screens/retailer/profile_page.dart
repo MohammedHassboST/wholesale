@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../state/app_state.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/l10n/app_strings.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -9,20 +10,20 @@ class ProfilePage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تسجيل الخروج'),
-        content: const Text('هل أنت متأكد أنك تريد الخروج من حسابك؟'),
+        title: Text(tr('تسجيل الخروج')),
+        content: Text(tr('هل أنت متأكد أنك تريد الخروج من حسابك؟')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
+            child: Text(tr('إلغاء')),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               appState.logout(); // تنفيذ تسجيل الخروج والعودة لشاشة الدخول تلقائياً
             },
-            child: const Text(
-              'تأكيد الخروج',
+            child: Text(
+              tr('تأكيد الخروج'),
               style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
             ),
           ),
@@ -40,7 +41,7 @@ class ProfilePage extends StatelessWidget {
         return Scaffold(
           backgroundColor: AppColors.paper,
           appBar: AppBar(
-            title: const Text('حساب العميل / صاحب المحل', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            title: Text(tr('حساب العميل / صاحب المحل'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
             backgroundColor: AppColors.brandDeep,
             foregroundColor: Colors.white,
             centerTitle: true,
@@ -71,7 +72,7 @@ class ProfilePage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                user?.name ?? 'مستخدم',
+                                user?.name ?? tr('مستخدم'),
                                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                               ),
                               const SizedBox(height: 4),
@@ -88,14 +89,14 @@ class ProfilePage extends StatelessWidget {
                     ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('اسم المحل التجاري (اختياري)', style: TextStyle(color: AppColors.inkSoft, fontSize: 11)),
-                      subtitle: Text(user?.shopName ?? 'غير مسجل', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      title: Text(tr('اسم المحل التجاري (اختياري)'), style: TextStyle(color: AppColors.inkSoft, fontSize: 11)),
+                      subtitle: Text(user?.shopName ?? tr('غير مسجل'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     ),
                     ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('العنوان التفصيلي', style: TextStyle(color: AppColors.inkSoft, fontSize: 11)),
-                      subtitle: Text(user?.address ?? 'غير محدد', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      title: Text(tr('العنوان التفصيلي'), style: TextStyle(color: AppColors.inkSoft, fontSize: 11)),
+                      subtitle: Text(user?.address ?? tr('غير محدد'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     ),
                   ],
                 ),
@@ -112,7 +113,7 @@ class ProfilePage extends StatelessWidget {
                   children: [
                     ListTile(
                       leading: const Icon(Icons.logout, color: AppColors.danger),
-                      title: const Text('تسجيل الخروج من الحساب', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
+                      title: Text(tr('تسجيل الخروج من الحساب'), style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.danger),
                       onTap: () => _confirmLogout(context),
                     ),

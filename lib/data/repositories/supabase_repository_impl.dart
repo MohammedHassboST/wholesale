@@ -21,12 +21,24 @@ class SupabaseRepositoryImpl implements ICloudRepository {
   }
 
   @override
-  Future<void> updateVendorStatus(String vendorId, String status) async {
-    await _service.updateProfile(vendorId, {'status': status});
+  Future<UserEntity?> getUserByPhone(String phone) async {
+    final m = await _service.getProfileByPhone(phone);
+    if (m == null) return null;
+    return UserEntity.fromMap(m);
   }
 
   @override
-  Future<void> deleteVendor(String vendorId) async {
+  Stream<UserEntity?> getMyProfileStream(String userId) {
+    return _service.getMyProfileStream(userId);
+  }
+
+  @override
+  Future<void> updateVendorStatus(String adminId, String vendorId, String status) async {
+    await _service.rpcSetVendorStatus(adminId, vendorId, status);
+  }
+
+  @override
+  Future<void> deleteVendor(String adminId, String vendorId) async {
     await _service.deleteProfile(vendorId);
   }
 
@@ -41,18 +53,18 @@ class SupabaseRepositoryImpl implements ICloudRepository {
   }
 
   @override
-  Future<void> addProduct(ProductEntity product) async {
-    await _service.addProduct(product);
+  Future<void> addProduct(String vendorId, ProductEntity product) async {
+    await _service.rpcAddProduct(vendorId, product);
   }
 
   @override
-  Future<void> updateProductStock(String productId, int newStock) async {
-    await _service.updateProduct(productId, {'offer_remaining_qty': newStock});
+  Future<void> updateProduct(String vendorId, String productId, Map<String, dynamic> patch) async {
+    await _service.rpcUpdateProduct(vendorId, productId, patch);
   }
 
   @override
-  Future<void> deleteProduct(String productId) async {
-    await _service.deleteProduct(productId);
+  Future<void> deleteProduct(String vendorId, String productId) async {
+    await _service.rpcDeleteProduct(vendorId, productId);
   }
 
   @override
@@ -64,21 +76,51 @@ class SupabaseRepositoryImpl implements ICloudRepository {
 
   @override
   Future<void> updateCategories(List<String> categories) async {
-    // This depends on how categories are stored. 
-    // If they are in a table, we might need a specific service method.
-    for (var cat in categories) {
-      await _service.addCategory({'name': cat});
+    // Diff against stored rows so removals actually delete and re-syncs
+    // don't create duplicates.
+    final existing = (await _service.fetchCategories())
+        .map((m) => (m['name'] ?? '').toString())
+        .where((n) => n.isNotEmpty)
+        .toSet();
+    final desired = categories.where((c) => c.isNotEmpty).toSet();
+    for (final name in desired.difference(existing)) {
+      await _service.rpcAddCategory('SYSTEM', name);
+    }
+    for (final name in existing.difference(desired)) {
+      final all = await _service.fetchCategories();
+      final cat = all.firstWhere((c) => c['name'] == name, orElse: () => {});
+      if (cat.isNotEmpty) {
+        await _service.rpcDeleteCategory('SYSTEM', cat['id']);
+      }
     }
   }
 
   @override
-  Future<void> addCategory(String category) async {
-    await _service.addCategory({'name': category});
+  Future<void> addCategory(String adminId, String category, {String? icon}) async {
+    await _service.rpcAddCategory(adminId, category, icon: icon);
   }
 
   @override
-  Future<void> deleteCategory(String category) async {
-    await _service.deleteCategory(category);
+  Future<void> updateCategory(String adminId, String oldName, String newName, {String? icon}) async {
+    final all = await _service.fetchCategories();
+    final cat = all.firstWhere((c) => c['name'] == oldName, orElse: () => {});
+    if (cat.isNotEmpty) {
+      await _service.rpcUpdateCategory(adminId, cat['id'], newName, icon: icon);
+    }
+  }
+
+  @override
+  Future<void> deleteCategory(String adminId, String category) async {
+    final all = await _service.fetchCategories();
+    final cat = all.firstWhere((c) => c['name'] == category, orElse: () => {});
+    if (cat.isNotEmpty) {
+      await _service.rpcDeleteCategory(adminId, cat['id']);
+    }
+  }
+
+  @override
+  Future<void> saveVendorByAdmin(String adminId, UserEntity vendor) async {
+    await _service.rpcAddVendor(adminId, vendor.toMap());
   }
 
   @override
@@ -112,18 +154,26 @@ class SupabaseRepositoryImpl implements ICloudRepository {
 
   @override
   Future<bool> placeOrdersWithAtomicStockCheck(List<OrderEntity> orders) async {
-    // Simplistic implementation for now
-    try {
-      await placeOrders(orders);
-      return true;
-    } catch (e) {
-      return false;
-    }
+    // Single source of truth: ONE Postgres transaction (row locks + stock
+    // verify + decrement + order/item inserts + vendor & low-stock alerts).
+    // Deliberately NO client-side fallback — a fallback could oversell.
+    // Requires the `place_orders_atomic` RPC from supabase/migrations.
+    return _service.placeOrdersAtomic(orders);
   }
 
   @override
   Future<void> updateOrderStatus(String orderId, String status) async {
     await _service.updateOrderStatus(orderId, status);
+  }
+
+  @override
+  Future<void> updateOrderItem(String orderId, String productId, int newQty) async {
+    await _service.updateOrderItem(orderId, productId, newQty);
+  }
+
+  @override
+  Future<void> updateOrderInfo(String orderId, {String? name, String? phone, String? address}) async {
+    await _service.updateOrderInfo(orderId, name: name, phone: phone, address: address);
   }
 
   @override
@@ -133,11 +183,11 @@ class SupabaseRepositoryImpl implements ICloudRepository {
 
   @override
   Stream<List<NotificationEntity>> getNotificationsStream() {
-    // Note: getNotificationsStream in service needs a userId. 
-    // If we want ALL notifications, we might need a new service method.
-    // For now, let's assume it's for the current user or handled by a specific view.
-    // I'll leave it as an empty stream or placeholder if logic is unclear.
-    return const Stream.empty();
+    return _service.getAllNotificationsStream().map(
+          (maps) => maps
+              .map((m) => NotificationEntity.fromMap(m['id']?.toString() ?? '', m))
+              .toList(),
+        );
   }
 
   @override

@@ -18,20 +18,24 @@ class NotificationEntity {
   });
 
 
+  // snake_case keys to match the Supabase `notifications` table conventions
+  // (created_at / target_phone / is_read) used by the read path.
   Map<String, dynamic> toMap() => {
     'title': title,
     'body': body,
-    'createdAt': createdAt.toIso8601String(),
+    'created_at': createdAt.toIso8601String(),
     'payload': payload,
-    'targetPhone': targetPhone,
+    'target_phone': targetPhone,
+    'is_read': isRead,
   };
 
   factory NotificationEntity.fromMap(String id, Map<String, dynamic> map) => NotificationEntity(
-    id: id,
-    title: map['title'] ?? '',
-    body: map['body'] ?? '',
-    createdAt: DateTime.parse(map['createdAt']),
-    payload: map['payload'],
-    targetPhone: map['targetPhone'],
+    id: map['id']?.toString() ?? id,
+    title: map['title']?.toString() ?? '',
+    body: map['body']?.toString() ?? '',
+    createdAt: DateTime.tryParse((map['created_at'] ?? map['createdAt'] ?? '').toString()) ?? DateTime.now(),
+    payload: map['payload']?.toString(),
+    targetPhone: (map['target_phone'] ?? map['targetPhone'])?.toString(),
+    isRead: (map['is_read'] ?? map['isRead'] ?? false) == true,
   );
 }

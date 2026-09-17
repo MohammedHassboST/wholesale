@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../l10n/app_strings.dart';
 
 class AppColors {
   static const ink = Color(0xFF0F172A);
@@ -36,7 +37,8 @@ const List<String> kWholesaleUnits = [
 
 
 String currency(double n) {
-  return '${n.toStringAsFixed(0).replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')} ج.م';
+  final grouped = n.toStringAsFixed(0).replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
+  return AppLocale.isEnglish ? 'EGP $grouped' : '$grouped ج.م';
 }
 
 // ========== توقيت مصر العالمي (EET/EEST) ==========
@@ -70,19 +72,23 @@ DateTime getEgyptTime() {
 
 String formatEgyptDate(DateTime dt) {
   final egypt = _toEgyptTime(dt);
-  final months = [
-    'يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو',
-    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
-  ];
+  final months = AppLocale.isEnglish
+      ? const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      : const [
+          'يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو',
+          'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+        ];
   return '${egypt.day} ${months[egypt.month - 1]} ${egypt.year}';
 }
 
 String formatEgyptDateTime(DateTime dt) {
   final egypt = _toEgyptTime(dt);
-  final months = [
-    'يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو',
-    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
-  ];
+  final months = AppLocale.isEnglish
+      ? const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      : const [
+          'يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو',
+          'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+        ];
   final hour = egypt.hour.toString().padLeft(2, '0');
   final minute = egypt.minute.toString().padLeft(2, '0');
   return '${egypt.day} ${months[egypt.month - 1]} ${egypt.year} - $hour:$minute';

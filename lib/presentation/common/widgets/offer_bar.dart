@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/l10n/app_strings.dart';
 
 class OfferBar extends StatelessWidget {
   final int remaining;
@@ -64,10 +65,10 @@ class OfferBar extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               finished
-                  ? 'نفذت الكمية'
+                  ? tr('نفذت الكمية')
                   : urgent
-                  ? 'متبقي $remaining فقط! من أصل $total'
-                  : 'متبقي $remaining من $total',
+                  ? trArgs('متبقي {r} فقط! من أصل {t}', {'r': remaining, 't': total})
+                  : trArgs('متبقي {r} من {t}', {'r': remaining, 't': total}),
               style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w700,

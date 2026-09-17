@@ -36,7 +36,7 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
     return AnimatedBuilder(
       animation: appState,
       builder: (context, _) {
-        var orders = appState.orders..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        var orders = List.of(appState.orders)..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         if (activeFilter != 'الكل') {
           orders = orders.where((o) => o.status == activeFilter).toList();
         }
